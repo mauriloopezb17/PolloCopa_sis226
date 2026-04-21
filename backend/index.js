@@ -14,6 +14,7 @@ app.get('/api/ping', (req, res) => {
 })
 
 app.use('/api/cocina', require('./routes/cocina'))
+app.use('/api/caja',   require('./routes/caja'))
 
 app.listen(PORT, () => {
   console.log(`🚀  Servidor en http://localhost:${PORT}`)
