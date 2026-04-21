@@ -1,6 +1,5 @@
 <template>
   <div class="app-wrapper">
-
     <!-- ===== NAVBAR ===== -->
     <header class="navbar">
       <div class="navbar-left">
@@ -38,25 +37,25 @@
     <main class="content-area">
       <transition name="fade-slide" mode="out-in">
         <div :key="activeTab" class="content-panel">
-          <CajaTab v-if="activeTab === 'caja'" />
-        
-          <InventarioView v-if="activeTab === 'inventario'" />
+          <InventarioTab v-if="activeTab === 'inventario'" />
+          <CajaTab v-else-if="activeTab === 'caja'" />
+          <CocinaTab v-else-if="activeTab === 'cocina'" />
         </div>
       </transition>
     </main>
-
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import InventarioTab from './inventario/InventarioTab.vue'
 import CajaTab from './caja/CajaTab.vue'
-import InventarioView from './InventarioView.vue'
+import CocinaTab from './cocina/CocinaTab.vue'
 
 const tabs = [
   { id: 'inventario', label: 'Inventario' },
-  { id: 'caja',       label: 'Caja'       },
-  { id: 'cocina',     label: 'Cocina'     },
+  { id: 'caja', label: 'Caja' },
+  { id: 'cocina', label: 'Cocina' },
 ]
 
 const activeTab = ref('inventario')
@@ -70,12 +69,16 @@ function updateTime() {
   })
 }
 
-let timer
+let timer = null
+
 onMounted(() => {
   updateTime()
   timer = setInterval(updateTime, 1000)
 })
-onUnmounted(() => clearInterval(timer))
+
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
+})
 </script>
 
 <style scoped>
@@ -87,13 +90,15 @@ onUnmounted(() => clearInterval(timer))
 
 .app-wrapper {
   min-height: 100vh;
-  background: #F2F2F2;
+  background: #ffffff;
   font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
   display: flex;
   flex-direction: column;
 }
 
-/* NAVBAR */
+/* ======================================
+   NAVBAR
+====================================== */
 .navbar {
   background: #D90B31;
   height: 68px;
@@ -107,6 +112,7 @@ onUnmounted(() => clearInterval(timer))
   z-index: 100;
 }
 
+/* Logo */
 .logo-block {
   display: flex;
   align-items: center;
@@ -143,6 +149,7 @@ onUnmounted(() => clearInterval(timer))
   text-transform: uppercase;
 }
 
+/* Nav tabs */
 .navbar-center {
   display: flex;
   align-items: center;
@@ -193,10 +200,17 @@ onUnmounted(() => clearInterval(timer))
 }
 
 @keyframes bar-in {
-  from { width: 0; opacity: 0; }
-  to   { width: 60%; opacity: 1; }
+  from {
+    width: 0;
+    opacity: 0;
+  }
+  to {
+    width: 60%;
+    opacity: 1;
+  }
 }
 
+/* Right */
 .navbar-right {
   display: flex;
   align-items: center;
@@ -221,8 +235,14 @@ onUnmounted(() => clearInterval(timer))
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1;   transform: scale(1);   }
-  50%       { opacity: 0.4; transform: scale(0.75); }
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.75);
+  }
 }
 
 .time-text {
@@ -233,17 +253,21 @@ onUnmounted(() => clearInterval(timer))
   letter-spacing: 1px;
 }
 
-/* CONTENT */
+/* ======================================
+   CONTENT
+====================================== */
 .content-area {
   flex: 1;
-  background: #F2F2F2;
+  background: #ffffff;
 }
 
 .content-panel {
   min-height: calc(100vh - 68px);
 }
 
-/* TRANSITIONS */
+/* ======================================
+   TRANSITIONS
+====================================== */
 .fade-slide-enter-active,
 .fade-slide-leave-active {
   transition: opacity 0.2s ease, transform 0.2s ease;
