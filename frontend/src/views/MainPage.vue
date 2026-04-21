@@ -37,7 +37,9 @@
     <!-- ===== CONTENT AREA ===== -->
     <main class="content-area">
       <transition name="fade-slide" mode="out-in">
-        <div :key="activeTab" class="content-panel"></div>
+        <div :key="activeTab" class="content-panel">
+          <CajaTab v-if="activeTab === 'caja'" />
+        </div>
       </transition>
     </main>
 
@@ -46,6 +48,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import CajaTab from './caja/CajaTab.vue'
 
 const tabs = [
   { id: 'inventario', label: 'Inventario' },
