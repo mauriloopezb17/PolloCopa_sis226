@@ -136,7 +136,6 @@
  * ═══════════════════════════════════════════════════════════════
  * HU-18 — Pantalla de Cocina
  * ═══════════════════════════════════════════════════════════════
- *
  * CÓMO FUNCIONA AHORA (con base de datos real):
  * ─────────────────────────────────────────────
  * Ya no usamos localStorage ni BroadcastChannel.
@@ -187,7 +186,7 @@ const LIMITE_MS      = 5 * 60 * 1000     // 5 minutos por pedido
 const ALERTA_MS      = 4 * 60 * 1000     // alerta visual a los 4 min
 const POLLING_MS     = 5 * 1000          // consultar backend cada 5 seg
 const API_BASE       = '/api/cocina'      // ajustar si el backend usa otro prefijo
-const MODO_MOCK      = true              // ← false cuando el backend esté listo
+const MODO_MOCK      = false            // ← false cuando el backend esté listo
 
 const TIPO_LABELS = {
   COMBO:    'Combo completo',
@@ -451,7 +450,7 @@ export default {
 ──────────────────────────────────────── */
 .pedidos-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(205px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(225px, 1fr));
   gap: 1rem;
   padding: 1.25rem;
 }
@@ -490,7 +489,7 @@ export default {
 /* Imagen */
 .img-frame {
   border-radius: 10px; overflow: hidden;
-  background: var(--bg); height: 130px;
+  background: var(--bg); height: 160px;
   display: flex; align-items: center; justify-content: center;
   position: relative; border: 1px solid var(--border);
 }
