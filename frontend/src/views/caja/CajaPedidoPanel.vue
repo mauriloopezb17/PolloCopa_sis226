@@ -38,28 +38,46 @@
       <p>Aún no hay productos en el pedido.</p>
     </div>
 
-    <!-- Totales -->
-    <div class="pedido-totales" v-if="items.length > 0">
-      <div class="total-row">
-        <span>Subtotal</span>
-        <span>Bs {{ formatPrecio(subtotal) }}</span>
+    <!-- Totales + Pago (solo cuando hay items) -->
+    <template v-if="items.length > 0">
+      <!-- Totales -->
+      <div class="pedido-totales">
+        <div class="total-row">
+          <span>Subtotal</span>
+          <span>Bs {{ formatPrecio(subtotal) }}</span>
+        </div>
+        <div class="total-row total-final">
+          <span>Total</span>
+          <span>Bs {{ formatPrecio(subtotal) }}</span>
+        </div>
       </div>
-      <div class="total-row total-final">
-        <span>Total</span>
-        <span>Bs {{ formatPrecio(subtotal) }}</span>
-      </div>
-    </div>
 
-    <!-- Acciones -->
-    <div class="pedido-acciones" v-if="items.length > 0">
-      <button class="btn-cancelar" @click="$emit('cancelar')">Cancelar</button>
-      <button class="btn-confirmar" @click="$emit('confirmar')">Confirmar pedido</button>
-    </div>
+      <!-- Componente de pago -->
+      <CajaPaymentSection 
+        ref="paymentSectionRef"
+        :subtotal="subtotal" 
+        :metodos-pago="metodosPago"
+        @updatePago="handlePagoUpdate"
+      />
+
+      <!-- Acciones -->
+      <div class="pedido-acciones">
+        <button class="btn-cancelar" @click="handleCancelar">Cancelar</button>
+        <button
+          class="btn-confirmar"
+          :disabled="!pagoData.valido"
+          @click="emitConfirmar"
+        >
+          Confirmar pedido
+        </button>
+      </div>
+    </template>
   </aside>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
+import CajaPaymentSection from './CajaPaymentSection.vue'
 
 const props = defineProps({
   items: {
@@ -70,13 +88,49 @@ const props = defineProps({
     type: String,
     default: '---',
   },
+  metodosPago: {
+    type: Array,
+    default: () => [],
+  },
 })
 
-defineEmits(['incrementar', 'decrementar', 'eliminar', 'cancelar', 'confirmar'])
+const emit = defineEmits(['incrementar', 'decrementar', 'eliminar', 'cancelar', 'confirmar'])
+
+const paymentSectionRef = ref(null)
+
+const pagoData = ref({
+  id_metodo: null,
+  monto_pagado: null,
+  valido: false
+})
 
 const subtotal = computed(() =>
   props.items.reduce((sum, item) => sum + Number(item.subtotal), 0)
 )
+
+function handlePagoUpdate(data) {
+  pagoData.value = data
+}
+
+function handleCancelar() {
+  resetPago()
+  emit('cancelar')
+}
+
+function resetPago() {
+  if (paymentSectionRef.value) {
+    paymentSectionRef.value.reset()
+  }
+}
+
+function emitConfirmar() {
+  emit('confirmar', {
+    id_metodo: pagoData.value.id_metodo,
+    monto_pagado: pagoData.value.monto_pagado,
+  })
+}
+
+defineExpose({ resetPago })
 
 function formatPrecio(val) {
   return Number(val).toFixed(2)
@@ -239,7 +293,7 @@ function etiquetaTipo(tipo) {
 
 /* --- Totales --- */
 .pedido-totales {
-  padding: 14px 18px;
+  padding: 14px 18px 8px;
   border-top: 1px solid #e8e8e8;
 }
 
@@ -293,12 +347,17 @@ function etiquetaTipo(tipo) {
 }
 
 .btn-confirmar {
-  background: #F2CB05;
-  border: 1px solid #F2CB05;
-  color: #333;
+  background: #D90B31;
+  border: 1px solid #D90B31;
+  color: #F2CB05;
 }
 
-.btn-confirmar:hover {
-  background: #d9b500;
+.btn-confirmar:hover:not(:disabled) {
+  background: #b80929;
+}
+
+.btn-confirmar:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 </style>

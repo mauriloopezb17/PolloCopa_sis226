@@ -211,7 +211,7 @@ function formatPrecio(val) {
 .btn-precio:hover .precio-tipo,
 .btn-precio:hover .precio-valor,
 .btn-precio:hover .precio-add {
-  color: #fff;
+  color: #F2CB05;
 }
 
 .precio-tipo {

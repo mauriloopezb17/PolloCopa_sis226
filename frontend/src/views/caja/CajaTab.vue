@@ -26,7 +26,19 @@
         </div>
       </div>
 
-      <div class="catalogo-grid">
+      <!-- Mensaje de error -->
+      <div v-if="error" class="catalogo-mensaje error-msg">
+        <p>{{ error }}</p>
+        <button class="filtro-btn" @click="cargarDatos">Reintentar</button>
+      </div>
+
+      <!-- Cargando -->
+      <div v-else-if="cargando" class="catalogo-mensaje">
+        <p>Cargando productos...</p>
+      </div>
+
+      <!-- Grid de productos -->
+      <div v-else class="catalogo-grid">
         <CajaProductoCard
           v-for="prod in productosFiltrados"
           :key="prod.id_producto"
@@ -38,135 +50,69 @@
 
     <!-- Panel de pedido a la derecha -->
     <CajaPedidoPanel
+      ref="panelRef"
       :items="pedidoItems"
       :ticket="ticketActual"
+      :metodos-pago="metodosPago"
       @incrementar="incrementar"
       @decrementar="decrementar"
       @eliminar="eliminar"
       @cancelar="cancelarPedido"
       @confirmar="confirmarPedido"
     />
+
+    <!-- Modal del Recibo -->
+    <CajaReceiptModal 
+      :show="!!ticketConfirmado"
+      :ticket="ticketConfirmado"
+      :items="reciboItems"
+      :metodos-pago="metodosPago"
+      :id-metodo-pago="reciboMetodoId"
+      @close="cerrarRecibo"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import CajaProductoCard from './CajaProductoCard.vue'
 import CajaPedidoPanel from './CajaPedidoPanel.vue'
+import CajaReceiptModal from './CajaReceiptModal.vue'
 
-// ===== Datos de ejemplo (se reemplazarán con llamadas al backend) =====
-const categorias = ref([
-  { id: 1, nombre: 'Pollos' },
-  { id: 2, nombre: 'Hamburguesas' },
-  { id: 3, nombre: 'Bebidas' },
-])
+const API = 'http://localhost:3000/api/caja'
 
-const productos = ref([
-  {
-    id_producto: 1,
-    codigo: 'POLL-001',
-    nombre: 'Pollo Entero',
-    descripcion: 'Pollo entero crujiente dorado, con ensalada fresca.',
-    id_categoria_producto: 1,
-    categoria: 'Pollos',
-    precio_combo: 85.00,
-    precio_con_papa: 70.00,
-    precio_solo: 55.00,
-    disponible: true,
-    imagen_url: null,
-  },
-  {
-    id_producto: 2,
-    codigo: 'POLL-002',
-    nombre: 'Medio Pollo',
-    descripcion: 'Medio pollo crujiente con ensalada y llajwa.',
-    id_categoria_producto: 1,
-    categoria: 'Pollos',
-    precio_combo: 55.00,
-    precio_con_papa: 45.00,
-    precio_solo: 35.00,
-    disponible: true,
-    imagen_url: null,
-  },
-  {
-    id_producto: 3,
-    codigo: 'POLL-003',
-    nombre: 'Cuarto de Pollo',
-    descripcion: 'Cuarto de pollo con ensalada y pan.',
-    id_categoria_producto: 1,
-    categoria: 'Pollos',
-    precio_combo: 35.00,
-    precio_con_papa: 28.00,
-    precio_solo: 22.00,
-    disponible: true,
-    imagen_url: null,
-  },
-  {
-    id_producto: 4,
-    codigo: 'POLL-004',
-    nombre: 'Pollo Fiesta',
-    descripcion: 'Pollo entero con papas jumbo, ensalada grande y gaseosa de 2L.',
-    id_categoria_producto: 1,
-    categoria: 'Pollos',
-    precio_combo: 120.00,
-    precio_con_papa: null,
-    precio_solo: null,
-    disponible: true,
-    imagen_url: null,
-  },
-  {
-    id_producto: 5,
-    codigo: 'HAMB-001',
-    nombre: 'Hamburguesa Clásica',
-    descripcion: 'Carne a la parrilla con lechuga, tomate y mayonesa.',
-    id_categoria_producto: 2,
-    categoria: 'Hamburguesas',
-    precio_combo: 35.00,
-    precio_con_papa: 28.00,
-    precio_solo: 20.00,
-    disponible: true,
-    imagen_url: null,
-  },
-  {
-    id_producto: 6,
-    codigo: 'HAMB-002',
-    nombre: 'Hamburguesa Doble',
-    descripcion: 'Doble carne con queso, lechuga, tomate y salsas.',
-    id_categoria_producto: 2,
-    categoria: 'Hamburguesas',
-    precio_combo: 45.00,
-    precio_con_papa: 38.00,
-    precio_solo: 28.00,
-    disponible: true,
-    imagen_url: null,
-  },
-  {
-    id_producto: 7,
-    codigo: 'BEB-001',
-    nombre: 'Gaseosa 500ml',
-    descripcion: 'Coca-Cola, Fanta o Sprite.',
-    id_categoria_producto: 3,
-    categoria: 'Bebidas',
-    precio_combo: null,
-    precio_con_papa: null,
-    precio_solo: 8.00,
-    disponible: true,
-    imagen_url: null,
-  },
-  {
-    id_producto: 8,
-    codigo: 'BEB-002',
-    nombre: 'Jugo Natural 350ml',
-    descripcion: 'Jugo de naranja, piña o mixto.',
-    id_categoria_producto: 3,
-    categoria: 'Bebidas',
-    precio_combo: null,
-    precio_con_papa: null,
-    precio_solo: 12.00,
-    disponible: true,
-    imagen_url: null,
-  },
-])
+// ===== Referencia al panel para llamar métodos expuestos =====
+const panelRef = ref(null)
+
+// ===== Datos cargados desde el backend =====
+const categorias  = ref([])
+const productos   = ref([])
+const metodosPago = ref([])
+const cargando    = ref(true)
+const error       = ref(null)
+
+async function cargarDatos() {
+  cargando.value = true
+  error.value = null
+  try {
+    const [resCat, resProd, resMet] = await Promise.all([
+      fetch(`${API}/categorias`),
+      fetch(`${API}/productos`),
+      fetch(`${API}/metodos-pago`),
+    ])
+    if (!resCat.ok || !resProd.ok || !resMet.ok) throw new Error('Error al cargar datos del servidor')
+    categorias.value  = await resCat.json()
+    productos.value   = await resProd.json()
+    metodosPago.value = await resMet.json()
+  } catch (err) {
+    console.error(err)
+    error.value = 'No se pudieron cargar los productos. Verifica que el servidor esté activo.'
+  } finally {
+    cargando.value = false
+  }
+}
+
+onMounted(cargarDatos)
 
 // ===== Filtrado =====
 const filtroCategoria = ref(null)
@@ -178,11 +124,13 @@ const productosFiltrados = computed(() => {
 
 // ===== Pedido =====
 const pedidoItems = ref([])
-const ticketCounter = ref(1)
-const ticketActual = computed(() => {
-  const num = String(ticketCounter.value).padStart(4, '0')
-  return `T-${num}`
-})
+const ticketActual = ref('---')
+const enviando = ref(false)
+
+// ===== Estado del Recibo Modal =====
+const ticketConfirmado = ref(null)
+const reciboItems = ref([])
+const reciboMetodoId = ref(null)
 
 function añadirAlPedido(producto, tipoPrecio) {
   // Determinar precio según tipo
@@ -237,11 +185,77 @@ function cancelarPedido() {
   pedidoItems.value = []
 }
 
-function confirmarPedido() {
-  // Placeholder — se conectará al backend después
-  alert(`Pedido ${ticketActual.value} confirmado con ${pedidoItems.value.length} item(s).`)
-  pedidoItems.value = []
-  ticketCounter.value++
+async function confirmarPedido(datosPago) {
+  if (enviando.value) return
+  enviando.value = true
+
+  try {
+    const body = {
+      items: pedidoItems.value.map(i => ({
+        id_producto:    i.id_producto,
+        tipo_precio:    i.tipo_precio,
+        cantidad:       i.cantidad,
+        precio_unitario: i.precio_unitario,
+      })),
+      pago: {
+        id_metodo:    datosPago.id_metodo,
+        monto_pagado: datosPago.monto_pagado,
+      },
+    }
+
+    const res = await fetch(`${API}/pedidos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    const data = await res.json()
+
+    if (!res.ok) {
+      alert(`Error: ${data.error || 'No se pudo crear el pedido'}`)
+      return
+    }
+
+    // Preparar info para el recibo
+    reciboItems.value = [...pedidoItems.value]
+    reciboMetodoId.value = datosPago.id_metodo
+    ticketConfirmado.value = data.pedido
+
+    // Limpiar pedido actual
+    pedidoItems.value = []
+    ticketActual.value = '---'
+    panelRef.value?.resetPago()
+
+  } catch (err) {
+    console.error(err)
+    alert('Error de conexión al crear el pedido.')
+  } finally {
+    enviando.value = false
+  }
+}
+
+function cerrarRecibo() {
+  ticketConfirmado.value = null
+  reciboItems.value = []
+  reciboMetodoId.value = null
+}
+
+// ===== Flush para testing (ejecutar desde la consola del navegador) =====
+if (typeof window !== 'undefined') {
+  window.flushPedidos = async function () {
+    try {
+      const res = await fetch(`${API}/flush`, { method: 'DELETE' })
+      const data = await res.json()
+      console.log('%c✔ ' + data.mensaje, 'color: green; font-weight: bold')
+      return data
+    } catch (err) {
+      console.error('Error al limpiar:', err)
+    }
+  }
+  console.log(
+    '%c[CAJA DEV] Para limpiar pedidos y pagos de la BD, ejecuta: flushPedidos()',
+    'color: #F2CB05; font-weight: bold; background: #222; padding: 4px 8px; border-radius: 4px'
+  )
 }
 </script>
 
@@ -295,15 +309,15 @@ function confirmarPedido() {
 }
 
 .filtro-btn:hover {
-  border-color: #F2CB05;
-  color: #7a6200;
-  background: rgba(242, 203, 5, 0.08);
+  border-color: #D90B31;
+  color: #D90B31;
+  background: rgba(217, 11, 49, 0.05);
 }
 
 .filtro-btn.active {
-  background: #F2CB05;
-  border-color: #F2CB05;
-  color: #333;
+  background: #D90B31;
+  border-color: #D90B31;
+  color: #F2CB05;
 }
 
 /* Grid de productos */
@@ -315,5 +329,22 @@ function confirmarPedido() {
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 12px;
   align-content: start;
+}
+
+/* Mensajes de carga / error */
+.catalogo-mensaje {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #888;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.error-msg {
+  color: #D90B31;
 }
 </style>
