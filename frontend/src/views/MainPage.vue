@@ -37,7 +37,9 @@
     <!-- ===== CONTENT AREA ===== -->
     <main class="content-area">
       <transition name="fade-slide" mode="out-in">
-        <div :key="activeTab" class="content-panel"></div>
+        <div :key="activeTab" class="content-panel">
+          <InventarioView v-if="activeTab === 'inventario'" />
+        </div>
       </transition>
     </main>
 
@@ -46,6 +48,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import InventarioView from './InventarioView.vue'
 
 const tabs = [
   { id: 'inventario', label: 'Inventario' },
@@ -81,15 +84,13 @@ onUnmounted(() => clearInterval(timer))
 
 .app-wrapper {
   min-height: 100vh;
-  background: #ffffff;
+  background: #F2F2F2;
   font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
   display: flex;
   flex-direction: column;
 }
 
-/* ======================================
-   NAVBAR
-====================================== */
+/* NAVBAR */
 .navbar {
   background: #D90B31;
   height: 68px;
@@ -103,7 +104,6 @@ onUnmounted(() => clearInterval(timer))
   z-index: 100;
 }
 
-/* Logo */
 .logo-block {
   display: flex;
   align-items: center;
@@ -140,7 +140,6 @@ onUnmounted(() => clearInterval(timer))
   text-transform: uppercase;
 }
 
-/* Nav tabs */
 .navbar-center {
   display: flex;
   align-items: center;
@@ -195,7 +194,6 @@ onUnmounted(() => clearInterval(timer))
   to   { width: 60%; opacity: 1; }
 }
 
-/* Right */
 .navbar-right {
   display: flex;
   align-items: center;
@@ -232,21 +230,17 @@ onUnmounted(() => clearInterval(timer))
   letter-spacing: 1px;
 }
 
-/* ======================================
-   CONTENT — blanco puro
-====================================== */
+/* CONTENT */
 .content-area {
   flex: 1;
-  background: #ffffff;
+  background: #F2F2F2;
 }
 
 .content-panel {
   min-height: calc(100vh - 68px);
 }
 
-/* ======================================
-   TRANSITIONS
-====================================== */
+/* TRANSITIONS */
 .fade-slide-enter-active,
 .fade-slide-leave-active {
   transition: opacity 0.2s ease, transform 0.2s ease;
