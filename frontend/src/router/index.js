@@ -1,5 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import MainPage from '../views/MainPage.vue'
+import MainPage      from '../views/MainPage.vue'
+import CocinaPedidos from '../views/CocinaPedidos.vue'
+
+
 
 const routes = [
   {
@@ -7,6 +10,13 @@ const routes = [
     name: 'MainPage',
     component: MainPage,
   },
+  {
+    path: '/cocina',
+    name: 'CocinaPedidos',
+    component: CocinaPedidos,
+  },
+
+  
 ]
 
 const router = createRouter({
