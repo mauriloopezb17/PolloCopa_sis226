@@ -1,0 +1,14 @@
+{
+    "sqltools.connections": [
+        {
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "146.235.242.100",
+            "port": 5432,
+            "driver": "PostgreSQL",
+            "name": "PolloCopa_sis226",
+            "database": "PolloCopa_sis226",
+            "username": "mauriloopezb17"
+        }
+    ]
+}
