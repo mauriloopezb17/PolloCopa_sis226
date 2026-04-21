@@ -146,14 +146,14 @@
  * El flujo completo es:
  *
  *   Cajero (HU-09) cobra → backend guarda en tabla `pedido`
- *   con estado "COBRADO" → este componente lo detecta en el
+ *   con estado "EN PROCESO" → este componente lo detecta en el
  *   siguiente ciclo de polling → aparece en pantalla.
  *
  * ┌──────────────────────────────────────────────────────────┐
  * │  QUÉ DEBE HACER EL BACKEND (dile al responsable del BE)  │
  * │                                                          │
  * │  GET /api/cocina/pedidos                                 │
- * │    → devuelve pedidos con estado "COBRADO"               │
+ * │    → devuelve pedidos con estado "EN PROCESO"               │
  * │      ordenados por hora_pedido ASC                       │
  * │    → incluye join con: detalle_pedido, producto,         │
  * │      estado_pedido                                       │
@@ -186,8 +186,8 @@
 const LIMITE_MS      = 5 * 60 * 1000     // 5 minutos por pedido
 const ALERTA_MS      = 4 * 60 * 1000     // alerta visual a los 4 min
 const POLLING_MS     = 5 * 1000          // consultar backend cada 5 seg
-const API_BASE       = '/api/cocina'      // ajustar si el backend usa otro prefijo
-const MODO_MOCK      = true              // ← false cuando el backend esté listo
+const API_BASE       = 'http://localhost:3000/api/cocina';     // ajustar si el backend usa otro prefijo
+const MODO_MOCK      = false              // ← false cuando el backend esté listo
 
 const TIPO_LABELS = {
   COMBO:    'Combo completo',
@@ -214,15 +214,15 @@ export default {
 
   computed: {
     pedidosOrdenados() {
-      // Solo los que están en estado COBRADO, del más antiguo al más nuevo
-      return [...this.pedidos]
-        .filter(p => p.estado === 'COBRADO')
-        .sort((a, b) => new Date(a.hora_pedido) - new Date(b.hora_pedido))
-        .map(p => ({
-          ...p,
-          tipo_precio_label: TIPO_LABELS[p.tipo_precio] || p.tipo_precio,
-        }))
-    },
+        return [...this.pedidos]
+          // CAMBIA 'COBRADO' por 'EN PROCESO' para que coincida con tu SQL del backend
+          .filter(p => p.estado === 'EN PROCESO') 
+          .sort((a, b) => new Date(a.hora_pedido) - new Date(b.hora_pedido))
+          .map(p => ({
+            ...p,
+            tipo_precio_label: TIPO_LABELS[p.tipo_precio] || p.tipo_precio,
+          }))
+      },
     horaActual() {
       return new Date(this.ahora).toLocaleTimeString('es-BO', {
         hour: '2-digit', minute: '2-digit', second: '2-digit',
@@ -329,7 +329,7 @@ export default {
           tipo_precio: 'COMBO',
           cantidad: 1,
           imagen_url: '/src/assets/pedidos/combo_antojito_ala.png',
-          estado: 'COBRADO',
+          estado: 'EN PROCESO',
         },
         {
           id_pedido: 2,
@@ -341,7 +341,7 @@ export default {
           tipo_precio: 'CON_PAPA',
           cantidad: 2,
           imagen_url: '/src/assets/pedidos/combo_antojito_pierna.png',
-          estado: 'COBRADO',
+          estado: 'EN PROCESO',
         },
         {
           id_pedido: 3,
@@ -353,7 +353,7 @@ export default {
           tipo_precio: 'SOLO',
           cantidad: 1,
           imagen_url: '',
-          estado: 'COBRADO',
+          estado: 'EN PROCESO',
         },
       ]
     },
