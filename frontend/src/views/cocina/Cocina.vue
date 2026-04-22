@@ -40,7 +40,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import IngredientItem from './Ingredientitem.vue'
-import { fetchIngredients, toggleIngredient } from '../router/Ingredientservice.js'
+import { fetchIngredients, toggleIngredient } from '../../router/Ingredientservice.js'
 
 const ingredients = ref([])
 const loadingAll  = ref(true)
