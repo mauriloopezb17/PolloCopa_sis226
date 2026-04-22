@@ -1,6 +1,5 @@
 <template>
   <div class="app-wrapper">
-
     <!-- ===== NAVBAR ===== -->
     <header class="navbar">
       <div class="navbar-left">
@@ -38,22 +37,25 @@
     <main class="content-area">
       <transition name="fade-slide" mode="out-in">
         <div :key="activeTab" class="content-panel">
-          <CajaTab v-if="activeTab === 'caja'" />
+          <InventarioTab v-if="activeTab === 'inventario'" />
+          <CajaTab v-else-if="activeTab === 'caja'" />
+          <CocinaTab v-else-if="activeTab === 'cocina'" />
         </div>
       </transition>
     </main>
-
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import InventarioTab from './inventario/InventarioView.vue'
 import CajaTab from './caja/CajaTab.vue'
+//  import CocinaTab from './cocina/CocinaTab.vue'
 
 const tabs = [
   { id: 'inventario', label: 'Inventario' },
-  { id: 'caja',       label: 'Caja'       },
-  { id: 'cocina',     label: 'Cocina'     },
+  { id: 'caja', label: 'Caja' },
+  { id: 'cocina', label: 'Cocina' },
 ]
 
 const activeTab = ref('inventario')
@@ -67,12 +69,16 @@ function updateTime() {
   })
 }
 
-let timer
+let timer = null
+
 onMounted(() => {
   updateTime()
   timer = setInterval(updateTime, 1000)
 })
-onUnmounted(() => clearInterval(timer))
+
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
+})
 </script>
 
 <style scoped>
@@ -194,8 +200,14 @@ onUnmounted(() => clearInterval(timer))
 }
 
 @keyframes bar-in {
-  from { width: 0; opacity: 0; }
-  to   { width: 60%; opacity: 1; }
+  from {
+    width: 0;
+    opacity: 0;
+  }
+  to {
+    width: 60%;
+    opacity: 1;
+  }
 }
 
 /* Right */
@@ -223,8 +235,14 @@ onUnmounted(() => clearInterval(timer))
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1;   transform: scale(1);   }
-  50%       { opacity: 0.4; transform: scale(0.75); }
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.75);
+  }
 }
 
 .time-text {
@@ -236,7 +254,7 @@ onUnmounted(() => clearInterval(timer))
 }
 
 /* ======================================
-   CONTENT — blanco puro
+   CONTENT
 ====================================== */
 .content-area {
   flex: 1;
