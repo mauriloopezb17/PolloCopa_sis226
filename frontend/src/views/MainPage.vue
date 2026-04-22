@@ -48,9 +48,9 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
-import InventarioTab from './inventario/InventarioTab.vue'
+import InventarioTab from './inventario/InventarioView.vue'
 import CajaTab from './caja/CajaTab.vue'
-import CocinaTab from './cocina/CocinaTab.vue'
+//  import CocinaTab from './cocina/CocinaTab.vue'
 
 const tabs = [
   { id: 'inventario', label: 'Inventario' },
