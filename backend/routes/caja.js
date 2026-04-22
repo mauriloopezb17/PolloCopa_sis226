@@ -153,13 +153,13 @@ router.post('/pedidos', async (req, res) => {
     const ticketNum = String(Number(ticketRows[0].total) + 1).padStart(4, '0')
     const numero_ticket = `T-${ticketNum}`
 
-    // 2. Buscar el estado inicial (PENDIENTE)
+    // 2. Buscar el estado inicial (EN PROCESO)
     const { rows: estados } = await client.query(
-      `SELECT id_estado FROM estado_pedido WHERE nombre = 'PENDIENTE' LIMIT 1`
+      `SELECT id_estado FROM estado_pedido WHERE nombre = 'EN PROCESO' LIMIT 1`
     )
     if (estados.length === 0) {
       await client.query('ROLLBACK')
-      return res.status(500).json({ error: 'Estado PENDIENTE no existe en la BD' })
+      return res.status(500).json({ error: 'Estado EN PROCESO no existe en la BD' })
     }
     const id_estado = estados[0].id_estado
 

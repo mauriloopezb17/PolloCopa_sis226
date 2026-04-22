@@ -236,13 +236,15 @@ function etiquetaTipo(tipo) {
   background: #e5e5e5;
 }
 
-/* PRINT STYLES */
+</style>
+
+<style>
+/* Estilos globales para la impresión */
 @media print {
   body * {
-    visibility: hidden;
+    visibility: hidden !important;
   }
   
-  /* Reset some basic layout properties */
   @page {
     margin: 0;
   }
@@ -253,9 +255,27 @@ function etiquetaTipo(tipo) {
     padding: 0 !important;
     background: #fff;
   }
+
+  .modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: transparent !important;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .modal-content {
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0;
+    margin: 0;
+  }
   
   .receipt-print-area, .receipt-print-area * {
-    visibility: visible;
+    visibility: visible !important;
   }
   
   .receipt-print-area {
