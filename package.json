@@ -1,0 +1,7 @@
+{
+  "name": "pollocopa-sis226",
+  "private": true,
+  "scripts": {
+    "stack": "bash start.sh"
+  }
+}

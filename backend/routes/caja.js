@@ -82,6 +82,179 @@ router.get('/metodos-pago', async (req, res) => {
 
 
 // ═══════════════════════════════════════════════════════════
+// GET /api/caja/turno-actual
+// ───────────────────────────────────────────────────────────
+// Devuelve el turno ABIERTO con resumen de ventas por método
+// de pago. 404 si no hay turno abierto.
+// ═══════════════════════════════════════════════════════════
+router.get('/turno-actual', async (req, res) => {
+  try {
+    const { rows: turnos } = await pool.query(
+      `SELECT id_turno, apertura, monto_apertura
+       FROM   turno_caja
+       WHERE  estado = 'ABIERTO'
+       ORDER  BY apertura DESC
+       LIMIT  1`
+    )
+    if (turnos.length === 0) {
+      // Incluir el monto_cierre del último turno cerrado para mostrarlo en la apertura
+      const { rows: ultimo } = await pool.query(
+        `SELECT COALESCE(monto_cierre, 0) AS monto_cierre
+         FROM   turno_caja
+         WHERE  estado = 'CERRADO'
+         ORDER  BY cierre DESC
+         LIMIT  1`
+      )
+      const monto_apertura_sugerido = ultimo.length > 0 ? Number(ultimo[0].monto_cierre) : 0
+      return res.status(404).json({ abierto: false, monto_apertura_sugerido })
+    }
+    const turno = turnos[0]
+
+    const { rows: ventas } = await pool.query(
+      `SELECT mp.nombre                              AS metodo,
+              COUNT(pa.id_pago)                      AS cantidad_pagos,
+              SUM(pa.monto_pagado)                   AS total_pagado,
+              SUM(pa.monto_cambio)                   AS total_cambio,
+              SUM(pa.monto_pagado - pa.monto_cambio) AS total_neto
+       FROM   pago pa
+         JOIN metodo_pago mp ON mp.id_metodo = pa.id_metodo
+       WHERE  pa.id_turno_caja = $1
+       GROUP  BY mp.nombre
+       ORDER  BY mp.nombre`,
+      [turno.id_turno]
+    )
+
+    const total_neto_turno = ventas.reduce((s, v) => s + Number(v.total_neto), 0)
+    const total_calculado  = Number(turno.monto_apertura) + total_neto_turno
+
+    res.json({
+      abierto:          true,
+      id_turno:         turno.id_turno,
+      apertura:         turno.apertura,
+      monto_apertura:   Number(turno.monto_apertura),
+      ventas_por_metodo: ventas.map(v => ({
+        metodo:          v.metodo,
+        cantidad_pagos:  Number(v.cantidad_pagos),
+        total_pagado:    Number(v.total_pagado),
+        total_cambio:    Number(v.total_cambio),
+        total_neto:      Number(v.total_neto),
+      })),
+      total_neto_turno,
+      total_calculado,
+    })
+  } catch (err) {
+    console.error('[GET /api/caja/turno-actual]', err.message)
+    res.status(500).json({ error: 'Error al obtener el turno actual' })
+  }
+})
+
+
+// ═══════════════════════════════════════════════════════════
+// POST /api/caja/apertura
+// ───────────────────────────────────────────────────────────
+// Abre un nuevo turno de caja. El monto_apertura se toma
+// automáticamente del monto_cierre del último turno cerrado;
+// si no existe turno anterior se usa 0.
+// ═══════════════════════════════════════════════════════════
+router.post('/apertura', async (_req, res) => {
+  try {
+    // Verificar que no haya ya un turno abierto
+    const { rows: abiertos } = await pool.query(
+      `SELECT id_turno FROM turno_caja WHERE estado = 'ABIERTO' LIMIT 1`
+    )
+    if (abiertos.length > 0) {
+      return res.status(409).json({ error: 'Ya existe un turno de caja abierto' })
+    }
+
+    // Tomar el monto_cierre del turno anterior como monto_apertura
+    const { rows: ultimo } = await pool.query(
+      `SELECT COALESCE(monto_cierre, 0) AS monto_cierre
+       FROM   turno_caja
+       WHERE  estado = 'CERRADO'
+       ORDER  BY cierre DESC
+       LIMIT  1`
+    )
+    const monto_apertura = ultimo.length > 0 ? Number(ultimo[0].monto_cierre) : 0
+
+    const { rows } = await pool.query(
+      `INSERT INTO turno_caja (monto_apertura, estado)
+       VALUES ($1, 'ABIERTO')
+       RETURNING id_turno, apertura, monto_apertura, estado`,
+      [monto_apertura]
+    )
+
+    res.status(201).json({ ok: true, turno: rows[0] })
+  } catch (err) {
+    console.error('[POST /api/caja/apertura]', err.message)
+    res.status(500).json({ error: 'Error al abrir el turno' })
+  }
+})
+
+
+// ═══════════════════════════════════════════════════════════
+// POST /api/caja/cierre
+// ───────────────────────────────────────────────────────────
+// Cierra el turno ABIERTO, registrando el conteo físico del
+// cajero y el total calculado por el sistema.
+// Body: { "monto_cierre": 850.00 }
+// ═══════════════════════════════════════════════════════════
+router.post('/cierre', async (req, res) => {
+  const { monto_cierre } = req.body
+
+  if (monto_cierre === undefined || isNaN(Number(monto_cierre)) || Number(monto_cierre) < 0) {
+    return res.status(400).json({ error: 'monto_cierre debe ser un número >= 0' })
+  }
+
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    const { rows: turnos } = await client.query(
+      `SELECT id_turno, monto_apertura
+       FROM   turno_caja
+       WHERE  estado = 'ABIERTO'
+       ORDER  BY apertura DESC
+       LIMIT  1`
+    )
+    if (turnos.length === 0) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'No hay un turno de caja abierto' })
+    }
+    const turno = turnos[0]
+
+    const { rows: ventas } = await client.query(
+      `SELECT COALESCE(SUM(monto_pagado - monto_cambio), 0) AS total_neto
+       FROM   pago
+       WHERE  id_turno_caja = $1`,
+      [turno.id_turno]
+    )
+    const total_neto      = Number(ventas[0].total_neto)
+    const total_calculado = Number(turno.monto_apertura) + total_neto
+
+    const { rows: updated } = await client.query(
+      `UPDATE turno_caja
+       SET    cierre          = NOW(),
+              monto_cierre    = $1,
+              total_calculado = $2,
+              estado          = 'CERRADO'
+       WHERE  id_turno = $3
+       RETURNING id_turno, apertura, cierre, monto_apertura, monto_cierre, total_calculado`,
+      [Number(monto_cierre), total_calculado, turno.id_turno]
+    )
+
+    await client.query('COMMIT')
+    res.json({ ok: true, turno: updated[0] })
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('[POST /api/caja/cierre]', err.message)
+    res.status(500).json({ error: 'Error al cerrar el turno' })
+  } finally {
+    client.release()
+  }
+})
+
+
+// ═══════════════════════════════════════════════════════════
 // POST /api/caja/pedidos
 // ───────────────────────────────────────────────────────────
 // Crea un nuevo pedido + su pago desde la caja, todo dentro
@@ -144,14 +317,15 @@ router.post('/pedidos', async (req, res) => {
   try {
     await client.query('BEGIN')
 
-    // 1. Generar numero_ticket: T-0001, T-0002, etc. (por día)
+    // 1. Generar numero_ticket: T-YYYYMMDD-0001, etc. (único por día)
+    const datePrefix = new Date().toISOString().slice(0, 10).replace(/-/g, '')
     const { rows: ticketRows } = await client.query(`
       SELECT COUNT(*) AS total
       FROM   pedido
-      WHERE  hora_pedido::date = CURRENT_DATE
-    `)
+      WHERE  numero_ticket LIKE $1
+    `, [`T-${datePrefix}-%`])
     const ticketNum = String(Number(ticketRows[0].total) + 1).padStart(4, '0')
-    const numero_ticket = `T-${ticketNum}`
+    const numero_ticket = `T-${datePrefix}-${ticketNum}`
 
     // 2. Buscar el estado inicial (EN PROCESO)
     const { rows: estados } = await client.query(
