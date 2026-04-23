@@ -99,9 +99,11 @@ const emit = defineEmits(['incrementar', 'decrementar', 'eliminar', 'cancelar', 
 const paymentSectionRef = ref(null)
 
 const pagoData = ref({
-  id_metodo: null,
+  id_metodo:    null,
   monto_pagado: null,
-  valido: false
+  valido:       false,
+  NIT:          null,
+  razon_social: null,
 })
 
 const subtotal = computed(() =>
@@ -125,8 +127,10 @@ function resetPago() {
 
 function emitConfirmar() {
   emit('confirmar', {
-    id_metodo: pagoData.value.id_metodo,
+    id_metodo:    pagoData.value.id_metodo,
     monto_pagado: pagoData.value.monto_pagado,
+    NIT:          pagoData.value.NIT,
+    razon_social: pagoData.value.razon_social,
   })
 }
 

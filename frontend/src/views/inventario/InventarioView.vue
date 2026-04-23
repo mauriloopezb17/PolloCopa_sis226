@@ -84,9 +84,37 @@
             @keyup.enter="agregarIngrediente"
             :disabled="guardandoIngrediente"
           />
-          <button class="btn-agregar" :disabled="!nuevoNombre.trim() || guardandoIngrediente" @click="agregarIngrediente">
+          <button class="btn-agregar" :disabled="!nuevoNombre.trim() || !nuevaUnidad.trim() || guardandoIngrediente" @click="agregarIngrediente">
             {{ guardandoIngrediente ? '...' : 'Agregar' }}
           </button>
+        </div>
+
+        <div class="form-extra">
+          <div class="form-extra-field">
+            <label class="form-extra-label">Unidad de medida <span class="req">*</span></label>
+            <select v-model="nuevaUnidad" class="form-extra-select" :disabled="guardandoIngrediente">
+              <option value="">Seleccionar...</option>
+              <option value="kg">kg — Kilogramos</option>
+              <option value="g">g — Gramos</option>
+              <option value="l">l — Litros</option>
+              <option value="ml">ml — Mililitros</option>
+              <option value="u">u — Unidades</option>
+              <option value="lb">lb — Libras</option>
+              <option value="doc">doc — Docena</option>
+            </select>
+          </div>
+          <div class="form-extra-field">
+            <label class="form-extra-label">Stock mínimo</label>
+            <input
+              v-model.number="nuevoStockMinimo"
+              type="number"
+              min="0"
+              step="0.001"
+              class="form-extra-input"
+              placeholder="Ej: 10"
+              :disabled="guardandoIngrediente"
+            />
+          </div>
         </div>
 
         <transition name="fade">
@@ -220,6 +248,8 @@ const movimientosPorItem  = ref({})
 
 // Agregar ingrediente
 const nuevoNombre          = ref('')
+const nuevaUnidad          = ref('')
+const nuevoStockMinimo     = ref(null)
 const mensajeExito         = ref(false)
 const mensajeError         = ref(false)
 const mensajeErrorTexto    = ref('')
@@ -272,13 +302,18 @@ async function cargarIngredientes() {
 // HU-01: Crear ingrediente
 async function agregarIngrediente() {
   const nombre = nuevoNombre.value.trim()
-  if (!nombre) return
+  const unidad = nuevaUnidad.value.trim()
+  if (!nombre || !unidad) return
   guardandoIngrediente.value = true
   try {
     const res = await fetch(`${API}/ingredientes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre })
+      body: JSON.stringify({
+        nombre,
+        unidad_medida: unidad,
+        stock_minimo:  nuevoStockMinimo.value || 0,
+      })
     })
     const data = await res.json()
     if (!res.ok) {
@@ -287,7 +322,9 @@ async function agregarIngrediente() {
       return
     }
     ingredientes.value.push(data)
-    nuevoNombre.value = ''
+    nuevoNombre.value      = ''
+    nuevaUnidad.value      = ''
+    nuevoStockMinimo.value = null
     mostrarMensaje('exito')
   } catch {
     mensajeErrorTexto.value = 'No se pudo conectar con el servidor'
@@ -495,6 +532,20 @@ function mostrarMensaje(tipo) {
 }
 .btn-agregar:hover:not(:disabled) { background: #b50826; }
 .btn-agregar:disabled { background: #e0a0a8; cursor: not-allowed; }
+
+.form-extra { padding: 0 20px; margin-bottom: 14px; display: flex; flex-direction: column; gap: 10px; }
+.form-extra-field { display: flex; flex-direction: column; gap: 5px; }
+.form-extra-label { font-size: 10px; font-weight: 800; color: #666; text-transform: uppercase; letter-spacing: 0.8px; }
+.req { color: #D90B31; }
+.form-extra-select, .form-extra-input {
+  padding: 9px 12px;
+  border: 1.5px solid #e0e0e0;
+  font-size: 13px; font-family: inherit; color: #1a1a1a;
+  background: #fafafa; outline: none; transition: border-color 0.2s;
+  width: 100%;
+}
+.form-extra-select:focus, .form-extra-input:focus { border-color: #D90B31; background: #fff; }
+.form-extra-select:disabled, .form-extra-input:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .mensaje-exito, .mensaje-error { margin: 0 20px 14px; padding: 9px 14px; font-size: 13px; font-weight: 700; }
 .mensaje-exito { background: #edfaf1; color: #1a7a3c; border: 1px solid #b2e8c6; }
