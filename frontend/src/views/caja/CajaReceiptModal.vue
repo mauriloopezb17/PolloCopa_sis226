@@ -11,6 +11,11 @@
           <p><strong>Ticket:</strong> {{ ticket.numero_ticket }}</p>
           <p><strong>Fecha:</strong> {{ formatearFecha(ticket.hora_pedido) }}</p>
           <p><strong>Método de Pago:</strong> {{ metodoNombre }}</p>
+          <template v-if="nit || razonSocial">
+            <div class="receipt-factura-sep"></div>
+            <p v-if="nit"><strong>NIT:</strong> {{ nit }}</p>
+            <p v-if="razonSocial"><strong>Razón Social:</strong> {{ razonSocial }}</p>
+          </template>
         </div>
 
         <div class="receipt-items">
@@ -52,11 +57,13 @@
 import { computed } from 'vue'
 
 const props = defineProps({
-  show: { type: Boolean, required: true },
-  ticket: { type: Object, default: null },
-  items: { type: Array, default: () => [] },
-  metodosPago: { type: Array, default: () => [] },
-  idMetodoPago: { type: Number, default: null }
+  show:         { type: Boolean, required: true },
+  ticket:       { type: Object,  default: null },
+  items:        { type: Array,   default: () => [] },
+  metodosPago:  { type: Array,   default: () => [] },
+  idMetodoPago: { type: Number,  default: null },
+  nit:          { type: String,  default: null },
+  razonSocial:  { type: String,  default: null },
 })
 
 const emit = defineEmits(['close'])
@@ -151,6 +158,11 @@ function etiquetaTipo(tipo) {
 
 .receipt-info p {
   margin: 2px 0;
+}
+
+.receipt-factura-sep {
+  border-top: 1px dashed #ccc;
+  margin: 6px 0;
 }
 
 .receipt-items {

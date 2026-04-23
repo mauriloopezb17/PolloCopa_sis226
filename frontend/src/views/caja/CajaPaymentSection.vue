@@ -29,6 +29,29 @@
     <p v-if="cambio < 0" class="cambio-advertencia">
       Monto insuficiente (faltan Bs {{ formatPrecio(Math.abs(cambio)) }})
     </p>
+
+    <div class="factura-separator">
+      <span>Datos de facturación <em>(opcional)</em></span>
+    </div>
+
+    <label class="pago-label">NIT</label>
+    <input
+      type="text"
+      inputmode="numeric"
+      v-model.trim="nit"
+      class="pago-input"
+      placeholder="Sin NIT"
+      maxlength="15"
+    />
+
+    <label class="pago-label">Razón Social</label>
+    <input
+      type="text"
+      v-model.trim="razonSocial"
+      class="pago-input"
+      placeholder="Sin razón social"
+      maxlength="100"
+    />
   </div>
 </template>
 
@@ -49,7 +72,9 @@ const props = defineProps({
 const emit = defineEmits(['updatePago'])
 
 const metodoSeleccionado = ref(null)
-const montoPagado = ref(null)
+const montoPagado        = ref(null)
+const nit                = ref('')
+const razonSocial        = ref('')
 
 const cambio = computed(() => {
   if (montoPagado.value == null || montoPagado.value === '') return 0
@@ -63,17 +88,21 @@ const valido = computed(() => {
          cambio.value >= 0
 })
 
-watch([metodoSeleccionado, montoPagado, valido], () => {
+watch([metodoSeleccionado, montoPagado, valido, nit, razonSocial], () => {
   emit('updatePago', {
-    id_metodo: metodoSeleccionado.value,
+    id_metodo:    metodoSeleccionado.value,
     monto_pagado: montoPagado.value,
-    valido: valido.value
+    valido:       valido.value,
+    NIT:          nit.value || null,
+    razon_social: razonSocial.value || null,
   })
 })
 
 function reset() {
   metodoSeleccionado.value = null
-  montoPagado.value = null
+  montoPagado.value        = null
+  nit.value                = ''
+  razonSocial.value        = ''
 }
 
 function formatPrecio(val) {
@@ -156,5 +185,32 @@ defineExpose({ reset })
   font-weight: 600;
   margin-top: 4px;
   text-align: right;
+}
+
+.factura-separator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #bbb;
+}
+
+.factura-separator::before,
+.factura-separator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e8e8e8;
+}
+
+.factura-separator em {
+  font-style: normal;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
 }
 </style>
