@@ -3,82 +3,73 @@ import { ref, onMounted, watch, computed } from 'vue'
 
 const API = import.meta.env.VITE_API_URL
 
-// ── Datos desde BD ──────────────────────────────────────────────────────────
-const ingredientes     = ref([])
-const tiposMovimiento  = ref([])
-const proveedores      = ref([])
+const ingredientes    = ref([])
+const tiposMovimiento = ref([])
+const proveedores     = ref([])
 
-// ── Selección activa ─────────────────────────────────────────────────────────
-const ingredienteId    = ref(null)
+const ingredienteId   = ref(null)
+const movimientos     = ref([])
+const resumen         = ref({})
+const loading         = ref(true)
 
-// ── Historial ────────────────────────────────────────────────────────────────
-const movimientos      = ref([])
-const resumen          = ref({})
-const loading          = ref(true)
+const filtroTipo      = ref('')
+const busqueda        = ref('')
 
-// ── Filtros ──────────────────────────────────────────────────────────────────
-const filtroTipo       = ref('')       // 'entrada' | 'salida' | ''
-const busqueda         = ref('')
+const fIdTipo         = ref(null)
+const fCantidad       = ref('')
+const fMotivo         = ref('')
+const fObservacion    = ref('')
+const fLote           = ref('')
+const fCostoUnitario  = ref('')
+const fIdProveedor    = ref(null)
 
-// ── Formulario ───────────────────────────────────────────────────────────────
-const fIdTipo          = ref(null)
-const fCantidad        = ref('')
-const fMotivo          = ref('')
-const fObservacion     = ref('')
-const fLote            = ref('')
-const fCostoUnitario   = ref('')
-const fIdProveedor     = ref(null)
-
-// ── Computed: ingrediente seleccionado ────────────────────────────────────────
 const ingredienteActual = computed(() =>
   ingredientes.value.find(i => i.id === ingredienteId.value) || null
 )
 
-// ── Carga inicial ─────────────────────────────────────────────────────────────
+const stockBajo = computed(() =>
+  resumen.value.stock_actual != null &&
+  resumen.value.stock_minimo != null &&
+  Number(resumen.value.stock_actual) <= Number(resumen.value.stock_minimo)
+)
+
 const cargarIngredientes = async () => {
-  const res = await fetch(`${API}/inventario/ingredientes`)
+  const res = await fetch(`${API}/api/inventario/ingredientes`)
   ingredientes.value = await res.json()
-  if (ingredientes.value.length > 0) {
-    ingredienteId.value = ingredientes.value[0].id
-  }
+  if (ingredientes.value.length > 0) ingredienteId.value = ingredientes.value[0].id
 }
 
 const cargarTipos = async () => {
-  const res = await fetch(`${API}/inventario/tipos-movimiento`)
+  const res = await fetch(`${API}/api/inventario/tipos-movimiento`)
   tiposMovimiento.value = await res.json()
-  if (tiposMovimiento.value.length > 0) {
-    fIdTipo.value = tiposMovimiento.value[0].id
-  }
+  if (tiposMovimiento.value.length > 0) fIdTipo.value = tiposMovimiento.value[0].id
 }
 
 const cargarProveedores = async () => {
-  const res = await fetch(`${API}/inventario/proveedores`)
+  const res = await fetch(`${API}/api/inventario/proveedores`)
   proveedores.value = await res.json()
 }
 
-// ── Historial ─────────────────────────────────────────────────────────────────
 const cargarDatos = async () => {
   if (!ingredienteId.value) return
   loading.value = true
   const params = new URLSearchParams()
   if (filtroTipo.value) params.append('tipo', filtroTipo.value)
   if (busqueda.value)   params.append('busqueda', busqueda.value)
-  let url = `${API}/inventario/movimientos/${ingredienteId.value}`
-  if (params.toString()) url += `?${params.toString()}`
+  const url = `${API}/api/inventario/movimientos/${ingredienteId.value}${params.toString() ? '?' + params : ''}`
   const res  = await fetch(url)
   const data = await res.json()
-  resumen.value    = data.resumen
+  resumen.value     = data.resumen
   movimientos.value = data.movimientos
-  loading.value    = false
+  loading.value     = false
 }
 
-// ── Registrar movimiento ──────────────────────────────────────────────────────
 const registrarMovimiento = async () => {
   if (!fCantidad.value || !fMotivo.value || !fIdTipo.value) {
-    alert('Completa los campos: tipo, cantidad y motivo')
+    alert('Completa: tipo, cantidad y motivo')
     return
   }
-  await fetch(`${API}/inventario/movimientos`, {
+  const res = await fetch(`${API}/api/inventario/movimientos`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -86,37 +77,28 @@ const registrarMovimiento = async () => {
       id_tipo_movimiento: fIdTipo.value,
       cantidad:           Number(fCantidad.value),
       motivo:             fMotivo.value,
-      observacion:        fObservacion.value || null,
-      lote:               fLote.value        || null,
+      observacion:        fObservacion.value   || null,
+      lote:               fLote.value          || null,
       costo_unitario:     fCostoUnitario.value ? Number(fCostoUnitario.value) : null,
-      id_proveedor:       fIdProveedor.value  || null,
+      id_proveedor:       fIdProveedor.value   || null,
     })
   })
-  // Limpiar form
-  fCantidad.value      = ''
-  fMotivo.value        = ''
-  fObservacion.value   = ''
-  fLote.value          = ''
-  fCostoUnitario.value = ''
-  fIdProveedor.value   = null
-  // Refrescar
+  if (!res.ok) {
+    const err = await res.json()
+    alert(err.error || 'Error al guardar')
+    return
+  }
+  fCantidad.value = fMotivo.value = fObservacion.value = fLote.value = fCostoUnitario.value = ''
+  fIdProveedor.value = null
   await cargarIngredientes()
   cargarDatos()
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-const setFiltro = (valor) => {
-  filtroTipo.value = valor
-  cargarDatos()
-}
+const setFiltro = (v) => { filtroTipo.value = v; cargarDatos() }
 
 let debounce = null
-const onBuscar = () => {
-  clearTimeout(debounce)
-  debounce = setTimeout(cargarDatos, 350)
-}
+const onBuscar = () => { clearTimeout(debounce); debounce = setTimeout(cargarDatos, 350) }
 
-// ── Lifecycle ─────────────────────────────────────────────────────────────────
 watch(ingredienteId, cargarDatos)
 
 onMounted(async () => {
@@ -137,8 +119,8 @@ onMounted(async () => {
             <p class="header-sub">Control de ingresos y salidas de ingredientes</p>
           </div>
         </div>
-        <div class="selector-wrap">
-          <label class="field-label-light">Ingrediente</label>
+        <div class="ing-selector">
+          <label class="label-light">Ingrediente</label>
           <select class="select-pill" v-model="ingredienteId">
             <option v-for="i in ingredientes" :key="i.id" :value="i.id">
               {{ i.nombre }}
@@ -167,29 +149,29 @@ onMounted(async () => {
           <p class="card-value">{{ resumen.stock_actual ?? '—' }}</p>
           <p class="card-unit">{{ resumen.unidad }}</p>
         </div>
-        <div class="card" :class="ingredienteActual?.agotado || resumen.stock_actual <= resumen.stock_minimo ? 'card-alert' : 'card-ok'">
+        <div class="card" :class="ingredienteActual?.agotado ? 'card-alert' : stockBajo ? 'card-warn' : 'card-ok'">
           <p class="card-label">Estado</p>
-          <p class="card-value">{{ ingredienteActual?.agotado || resumen.stock_actual <= resumen.stock_minimo ? '⚠️' : '✓' }}</p>
-          <p class="card-unit">{{ ingredienteActual?.agotado ? 'Agotado' : resumen.stock_actual <= resumen.stock_minimo ? 'Stock bajo' : 'Normal' }}</p>
+          <p class="card-value">{{ ingredienteActual?.agotado ? '🚫' : stockBajo ? '⚠️' : '✓' }}</p>
+          <p class="card-unit">{{ ingredienteActual?.agotado ? 'Agotado' : stockBajo ? 'Stock bajo' : 'Normal' }}</p>
         </div>
       </div>
 
-      <!-- ALERTA STOCK BAJO -->
-      <div v-if="resumen.total_alertas > 0" class="alerta-box">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;flex-shrink:0">
+      <!-- BANNER ALERTA -->
+      <div v-if="Number(resumen.total_alertas) > 0" class="banner-alerta">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="banner-icon">
           <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
           <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>
-        <span>{{ resumen.total_alertas }} salida(s) superan el stock mínimo del ingrediente. Revisa las filas marcadas.</span>
+        {{ resumen.total_alertas }} salida(s) superan el stock mínimo. Revisa las filas marcadas.
       </div>
 
-      <!-- FORM -->
-      <section class="form-section">
+      <!-- FORMULARIO -->
+      <section class="card-section">
         <h2 class="section-title">Registrar movimiento</h2>
         <div class="form-grid">
 
           <div class="field">
-            <label class="field-label">Tipo de movimiento *</label>
+            <label class="field-label">Tipo *</label>
             <select class="input" v-model="fIdTipo">
               <option v-for="t in tiposMovimiento" :key="t.id" :value="t.id">
                 {{ t.nombre }}
@@ -199,21 +181,19 @@ onMounted(async () => {
 
           <div class="field">
             <label class="field-label">Cantidad *</label>
-            <input class="input" v-model="fCantidad" type="number" placeholder="0" min="0.001" step="0.001" />
+            <input class="input" v-model="fCantidad" type="number" placeholder="0.000" min="0.001" step="0.001" />
           </div>
 
           <div class="field field-wide">
             <label class="field-label">Motivo *</label>
-            <input class="input" v-model="fMotivo" placeholder="Ej: Compra semanal proveedor" />
+            <input class="input" v-model="fMotivo" placeholder="Ej: Compra semanal" />
           </div>
 
           <div class="field">
             <label class="field-label">Proveedor</label>
             <select class="input" v-model="fIdProveedor">
               <option :value="null">— ninguno —</option>
-              <option v-for="p in proveedores" :key="p.id" :value="p.id">
-                {{ p.nombre }}
-              </option>
+              <option v-for="p in proveedores" :key="p.id" :value="p.id">{{ p.nombre }}</option>
             </select>
           </div>
 
@@ -232,28 +212,27 @@ onMounted(async () => {
             <input class="input" v-model="fObservacion" placeholder="Notas adicionales..." />
           </div>
 
-          <div class="field field-btn">
+          <div class="field field-action">
             <button class="btn-guardar" @click="registrarMovimiento">Guardar</button>
           </div>
 
         </div>
       </section>
 
-      <!-- FILTROS -->
-      <section class="filtros-section">
+      <!-- HISTORIAL -->
+      <section class="historial-section">
         <h2 class="section-title">Historial</h2>
         <div class="filtros-row">
-          <div class="filter-tabs">
-            <button class="filter-tab" :class="{ 'tab-active': filtroTipo === '' }"        @click="setFiltro('')">Todos</button>
-            <button class="filter-tab" :class="{ 'tab-active-entrada': filtroTipo === 'entrada' }" @click="setFiltro('entrada')">Entradas</button>
-            <button class="filter-tab" :class="{ 'tab-active-salida':  filtroTipo === 'salida'  }" @click="setFiltro('salida')">Salidas</button>
+          <div class="tabs">
+            <button class="tab" :class="{ 'tab-all': filtroTipo === '' }"          @click="setFiltro('')">Todos</button>
+            <button class="tab" :class="{ 'tab-entrada': filtroTipo === 'entrada' }" @click="setFiltro('entrada')">Entradas</button>
+            <button class="tab" :class="{ 'tab-salida':  filtroTipo === 'salida'  }" @click="setFiltro('salida')">Salidas</button>
           </div>
-          <input class="input input-search" v-model="busqueda" @input="onBuscar" placeholder="Buscar motivo, observación o proveedor..." />
+          <input class="input input-buscar" v-model="busqueda" @input="onBuscar" placeholder="Buscar motivo, observación o proveedor..." />
         </div>
       </section>
 
-      <!-- TABLA -->
-      <div v-if="loading" class="loading">Cargando datos...</div>
+      <div v-if="loading" class="estado-carga">Cargando datos...</div>
 
       <div v-else class="table-wrap">
         <table v-if="movimientos.length > 0">
@@ -271,12 +250,12 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="m in movimientos" :key="m.id" :class="m.es_alerta ? 'row-alerta' : ''">
+            <tr v-for="m in movimientos" :key="m.id" :class="{ 'row-alerta': m.es_alerta }">
               <td>{{ m.fecha }}</td>
               <td class="muted">{{ m.hora }}</td>
               <td>
                 <span :class="['badge', m.tipo === 'entrada' ? 'badge-entrada' : 'badge-salida']">
-                  {{ m.tipo === 'entrada' ? '+ ' : '− ' }}{{ m.tipo_nombre }}
+                  {{ m.tipo === 'entrada' ? '+' : '−' }} {{ m.tipo_nombre }}
                 </span>
               </td>
               <td :class="m.tipo === 'entrada' ? 'qty-pos' : 'qty-neg'">
@@ -287,13 +266,13 @@ onMounted(async () => {
               <td class="muted">{{ m.proveedor || '—' }}</td>
               <td class="muted">{{ m.costo_unitario != null ? m.costo_unitario : '—' }}</td>
               <td>
-                <span v-if="m.es_alerta" class="badge badge-alerta">alerta</span>
-                <span v-else class="muted estado-normal">normal</span>
+                <span v-if="m.es_alerta" class="badge badge-alerta">⚠ alerta</span>
+                <span v-else class="muted txt-sm">normal</span>
               </td>
             </tr>
           </tbody>
         </table>
-        <div v-else class="empty">Sin movimientos para mostrar.</div>
+        <div v-else class="estado-vacio">Sin movimientos para mostrar.</div>
       </div>
 
     </main>
@@ -305,80 +284,133 @@ onMounted(async () => {
 
 .page { min-height: 100vh; background: #fdf6ec; font-family: 'Segoe UI', sans-serif; color: #1a1a1a; }
 
-/* HEADER */
-.header { background: #b91c1c; padding: 1.25rem 2rem; box-shadow: 0 2px 10px rgba(0,0,0,0.18); }
-.header-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
-.logo-wrap { display: flex; align-items: center; gap: 14px; }
-.logo-icon  { font-size: 38px; }
-.header-title { font-size: 22px; font-weight: 700; color: #fde68a; letter-spacing: -0.3px; }
-.header-sub   { font-size: 13px; color: #fca5a5; margin-top: 2px; }
-.selector-wrap { display: flex; flex-direction: column; gap: 5px; }
-.field-label-light { font-size: 11px; font-weight: 600; color: #fca5a5; text-transform: uppercase; letter-spacing: 0.5px; }
-.select-pill { height: 38px; padding: 0 16px; border-radius: 20px; border: 1.5px solid #fde68a; background: #7f1d1d; color: #fde68a; font-size: 14px; font-weight: 600; cursor: pointer; min-width: 220px; }
+/* ── HEADER ── */
+.header {
+  background: #b91c1c;
+  padding: 1.1rem 2rem;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.header-inner {
+  max-width: 1100px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;
+}
+.logo-wrap { display: flex; align-items: center; gap: 12px; }
+.logo-icon  { font-size: 36px; }
+.header-title { font-size: 20px; font-weight: 700; color: #fde68a; letter-spacing: -0.3px; }
+.header-sub   { font-size: 12px; color: #fca5a5; margin-top: 2px; }
+
+.ing-selector { display: flex; flex-direction: column; gap: 4px; }
+.label-light  { font-size: 11px; font-weight: 600; color: #fca5a5; text-transform: uppercase; letter-spacing: 0.5px; }
+.select-pill {
+  height: 36px; padding: 0 16px; border-radius: 20px;
+  border: 1.5px solid #fde68a; background: #7f1d1d; color: #fde68a;
+  font-size: 14px; font-weight: 600; cursor: pointer; min-width: 210px;
+}
 .select-pill:focus { outline: none; box-shadow: 0 0 0 2px #fde68a; }
 
-/* MAIN */
-.main { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+/* ── MAIN ── */
+.main { max-width: 1100px; margin: 0 auto; padding: 1.75rem 2rem; }
 
-/* CARDS */
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 1.5rem; }
-.card { border-radius: 16px; padding: 1.2rem; text-align: center; }
-.card-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.65; margin-bottom: 8px; }
-.card-value { font-size: 30px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
-.card-unit  { font-size: 13px; opacity: 0.6; }
+/* ── CARDS ── */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 12px; margin-bottom: 1.25rem; }
+.card { border-radius: 14px; padding: 1.1rem; text-align: center; }
+.card-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.65; margin-bottom: 6px; }
+.card-value { font-size: 28px; font-weight: 800; line-height: 1; margin-bottom: 3px; }
+.card-unit  { font-size: 12px; opacity: 0.6; }
 .card-green  { background: #dcfce7; color: #14532d; }
 .card-red    { background: #fee2e2; color: #7f1d1d; }
 .card-yellow { background: #fef9c3; color: #713f12; }
 .card-ok     { background: #e0f2fe; color: #0c4a6e; }
+.card-warn   { background: #fef3c7; color: #78350f; }
 .card-alert  { background: #7f1d1d; color: #fde68a; }
 
-/* ALERTA */
-.alerta-box { display: flex; align-items: center; gap: 10px; background: #fef3c7; border: 1.5px solid #f59e0b; border-radius: 10px; padding: 12px 16px; margin-bottom: 1.5rem; font-size: 13px; color: #78350f; }
+/* ── BANNER ── */
+.banner-alerta {
+  display: flex; align-items: center; gap: 10px;
+  background: #fef3c7; border: 1.5px solid #f59e0b; border-radius: 10px;
+  padding: 11px 16px; margin-bottom: 1.25rem; font-size: 13px; color: #78350f;
+}
+.banner-icon { width: 17px; height: 17px; flex-shrink: 0; }
 
-/* SECTION TITLE */
-.section-title { font-size: 13px; font-weight: 700; color: #b91c1c; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #fde68a; display: inline-block; text-transform: uppercase; letter-spacing: 0.5px; }
+/* ── CARD SECTION ── */
+.card-section {
+  background: #fff; border: 1.5px solid #fde68a; border-radius: 16px;
+  padding: 1.4rem; margin-bottom: 1.75rem;
+  box-shadow: 0 2px 10px rgba(185,28,28,0.07);
+}
+.section-title {
+  font-size: 12px; font-weight: 700; color: #b91c1c;
+  text-transform: uppercase; letter-spacing: 0.6px;
+  padding-bottom: 8px; border-bottom: 2px solid #fde68a;
+  display: inline-block; margin-bottom: 14px;
+}
 
-/* FORM */
-.form-section { background: #fff; border: 1.5px solid #fde68a; border-radius: 18px; padding: 1.5rem; margin-bottom: 2rem; box-shadow: 0 2px 12px rgba(185,28,28,0.07); }
-.form-grid { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
-.field { display: flex; flex-direction: column; gap: 6px; min-width: 140px; }
-.field-wide { flex: 2; min-width: 200px; }
-.field-btn  { justify-content: flex-end; }
-.field-label { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; }
+/* ── FORM ── */
+.form-grid { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.field { display: flex; flex-direction: column; gap: 5px; min-width: 138px; }
+.field-wide   { flex: 2; min-width: 200px; }
+.field-action { justify-content: flex-end; }
+.field-label  { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; }
 
-.input { height: 38px; padding: 0 12px; border: 1.5px solid #e5e7eb; border-radius: 10px; font-size: 14px; background: #fafafa; color: #1a1a1a; transition: border-color 0.15s; }
+.input {
+  height: 37px; padding: 0 11px;
+  border: 1.5px solid #e5e7eb; border-radius: 9px;
+  font-size: 13.5px; background: #fafafa; color: #1a1a1a;
+  transition: border-color 0.15s;
+}
 .input:focus { outline: none; border-color: #b91c1c; background: #fff; }
-.input-search { min-width: 260px; }
+.input-buscar { min-width: 260px; }
 
-.btn-guardar { height: 38px; padding: 0 28px; background: #b91c1c; color: #fde68a; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; letter-spacing: 0.3px; transition: background 0.15s, transform 0.1s; box-shadow: 0 2px 8px rgba(185,28,28,0.25); }
+.btn-guardar {
+  height: 37px; padding: 0 26px;
+  background: #b91c1c; color: #fde68a;
+  border: none; border-radius: 9px;
+  font-size: 13.5px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(185,28,28,0.22);
+  transition: background 0.15s, transform 0.1s;
+}
 .btn-guardar:hover  { background: #991b1b; }
 .btn-guardar:active { transform: scale(0.97); }
 
-/* FILTROS */
-.filtros-section { margin-bottom: 1rem; }
+/* ── HISTORIAL / FILTROS ── */
+.historial-section { margin-bottom: 1rem; }
 .filtros-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-.filter-tabs { display: flex; gap: 6px; }
-.filter-tab { height: 34px; padding: 0 16px; border-radius: 20px; border: 1.5px solid #e5e7eb; background: #fff; color: #6b7280; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
-.filter-tab:hover        { border-color: #b91c1c; color: #b91c1c; }
-.tab-active              { background: #b91c1c !important; color: #fde68a !important; border-color: #b91c1c !important; }
-.tab-active-entrada      { background: #dcfce7 !important; color: #14532d !important; border-color: #86efac !important; }
-.tab-active-salida       { background: #fee2e2 !important; color: #7f1d1d !important; border-color: #fca5a5 !important; }
 
-/* TABLA */
-.loading { padding: 2rem; text-align: center; color: #9ca3af; font-size: 14px; }
-.empty   { padding: 2rem; text-align: center; color: #9ca3af; font-size: 14px; }
+.tabs { display: flex; gap: 5px; }
+.tab {
+  height: 33px; padding: 0 15px; border-radius: 20px;
+  border: 1.5px solid #e5e7eb; background: #fff; color: #6b7280;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.14s;
+}
+.tab:hover     { border-color: #b91c1c; color: #b91c1c; }
+.tab-all       { background: #b91c1c !important; color: #fde68a !important; border-color: #b91c1c !important; }
+.tab-entrada   { background: #dcfce7 !important; color: #14532d !important; border-color: #86efac !important; }
+.tab-salida    { background: #fee2e2 !important; color: #7f1d1d !important; border-color: #fca5a5 !important; }
 
-.table-wrap { background: #fff; border: 1px solid #f3f4f6; border-radius: 16px; overflow: auto; box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
+/* ── TABLA ── */
+.estado-carga { padding: 2rem; text-align: center; color: #9ca3af; font-size: 14px; }
+.estado-vacio { padding: 2rem; text-align: center; color: #9ca3af; font-size: 14px; }
+
+.table-wrap { background: #fff; border: 1px solid #f3f4f6; border-radius: 14px; overflow: auto; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
-thead th { padding: 11px 14px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #fde68a; background: #b91c1c; }
-thead th:first-child { border-radius: 16px 0 0 0; }
-thead th:last-child  { border-radius: 0 16px 0 0; }
-tbody td { padding: 10px 14px; border-bottom: 1px solid #f9fafb; vertical-align: middle; }
+
+thead th {
+  padding: 10px 13px; text-align: left;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  color: #fde68a; background: #b91c1c;
+}
+thead th:first-child { border-radius: 14px 0 0 0; }
+thead th:last-child  { border-radius: 0 14px 0 0; }
+
+tbody td { padding: 9px 13px; border-bottom: 1px solid #f9fafb; vertical-align: middle; }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover td      { background: #fef9c3; }
 tbody tr.row-alerta td { background: #fff7ed; }
 
-.badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+.badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
 .badge-entrada { background: #dcfce7; color: #14532d; }
 .badge-salida  { background: #fee2e2; color: #7f1d1d; }
 .badge-alerta  { background: #fef3c7; color: #78350f; }
@@ -386,5 +418,5 @@ tbody tr.row-alerta td { background: #fff7ed; }
 .qty-pos { color: #14532d; font-weight: 700; }
 .qty-neg { color: #7f1d1d; font-weight: 700; }
 .muted   { color: #9ca3af; }
-.estado-normal { font-size: 12px; }
-</style>
+.txt-sm  { font-size: 12px; }
+</style> 
