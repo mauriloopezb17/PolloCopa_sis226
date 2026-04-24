@@ -33,14 +33,31 @@ router.patch('/:id/toggle', async (req, res) => {
     }
     
     const nuevoEstado = !checkResult.rows[0].agotado;
-    const updateQuery = `
-      UPDATE Ingredientes 
-      SET agotado = $1 
-      WHERE id_insumo = $2 
-      RETURNING id_insumo AS id, nombre AS name, stock_actual, agotado AS out
-    `;
-    const updateResult = await pool.query(updateQuery, [nuevoEstado, id]);
 
+const updateQuery = `
+  WITH upd_ingrediente AS (
+    -- PASO 1: Marcamos el tomate (id=1) como agotado = true
+    UPDATE Ingredientes 
+    SET agotado = $1 
+    WHERE id_insumo = $2 
+    RETURNING id_insumo AS id, nombre AS name, stock_actual, agotado AS out
+  ),
+  upd_producto AS (
+    -- PASO 2: Actualizamos los productos
+    UPDATE producto 
+    SET disponible = NOT $1  -- Como el tomate se agotó (true), el producto pasa a disponible = false
+    WHERE id_producto IN (
+        -- PASO 3: La magia ocurre aquí. 
+        -- Buscamos en la tabla receta todos los IDs de productos que necesitan el ingrediente 1 (Tomate)
+        SELECT id_producto 
+        FROM receta 
+        WHERE id_ingrediente = $2
+    )
+  )
+  SELECT * FROM upd_ingrediente;
+`;
+
+const updateResult = await pool.query(updateQuery, [nuevoEstado, id]);
     res.json(updateResult.rows[0]);
   } catch (error) {
     console.error('Error al actualizar el ingrediente:', error);
