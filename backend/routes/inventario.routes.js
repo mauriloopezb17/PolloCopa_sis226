@@ -215,4 +215,30 @@ router.post('/movimientos', async (req, res) => {
   }
 })
 
+// ─── PUT /api/inventario/ingredientes/:id/force-stock (testing helper) ───────
+router.put('/ingredientes/:id/force-stock', async (req, res) => {
+  const { id }    = req.params
+  const { stock } = req.body
+
+  if (stock === undefined || isNaN(Number(stock))) {
+    return res.status(400).json({ error: 'Stock inválido' })
+  }
+
+  try {
+    const stockNum = Number(stock)
+    await pool.query(
+      `UPDATE Ingredientes
+       SET stock_actual = $1,
+           agotado = $2,
+           valor_inventario = $1 * COALESCE(costo_unitario_avg, 0)
+       WHERE id_insumo = $3`,
+      [stockNum, stockNum <= 0, id]
+    )
+    res.json({ ok: true, id_insumo: id, nuevo_stock: stockNum })
+  } catch (err) {
+    console.error('[force-stock ERROR]:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 module.exports = router

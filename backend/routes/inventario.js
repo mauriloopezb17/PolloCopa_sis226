@@ -241,6 +241,19 @@ router.post('/ingredientes/:id/movimientos', async (req, res) => {
       [nuevoStock, nuevoStock <= 0, id]
     )
 
+    // 6. Re-enable products whose ingredients are all available again
+    await client.query(`
+      UPDATE producto p
+      SET disponible = true
+      WHERE p.disponible = false
+        AND NOT EXISTS (
+          SELECT 1 FROM receta r
+          JOIN Ingredientes i ON i.id_insumo = r.id_ingrediente
+          WHERE r.id_producto = p.id_producto
+            AND i.agotado = true
+        )
+    `)
+
     await client.query('COMMIT')
     res.status(201).json({
       movimiento:   movRes.rows[0],
@@ -269,6 +282,50 @@ router.get('/proveedores', async (req, res) => {
     res.json(result.rows)
   } catch (err) {
     console.error('GET /proveedores:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ─────────────────────────────────────────
+// TESTING HELPERS
+// ─────────────────────────────────────────
+
+router.put('/ingredientes/:id/force-stock', async (req, res) => {
+  const { id }    = req.params
+  const { stock } = req.body
+
+  if (stock === undefined || isNaN(Number(stock))) {
+    return res.status(400).json({ error: 'Stock inválido' })
+  }
+
+  try {
+    const stockNum = Number(stock)
+    await db.query(
+      `UPDATE ingredientes SET stock_actual = $1 WHERE id_insumo = $2::integer`,
+      [stockNum, id]
+    )
+    await db.query(
+      `UPDATE ingredientes
+       SET agotado = (stock_actual <= 0),
+           valor_inventario = stock_actual * COALESCE(costo_unitario_avg, 0)
+       WHERE id_insumo = $1::integer`,
+      [id]
+    )
+    // Re-enable products whose ingredients are all available again
+    await db.query(`
+      UPDATE producto p
+      SET disponible = true
+      WHERE p.disponible = false
+        AND NOT EXISTS (
+          SELECT 1 FROM receta r
+          JOIN Ingredientes i ON i.id_insumo = r.id_ingrediente
+          WHERE r.id_producto = p.id_producto
+            AND i.agotado = true
+        )
+    `)
+    res.json({ ok: true, id_insumo: id, nuevo_stock: stockNum })
+  } catch (err) {
+    console.error('[force-stock ERROR]:', err.message)
     res.status(500).json({ error: err.message })
   }
 })

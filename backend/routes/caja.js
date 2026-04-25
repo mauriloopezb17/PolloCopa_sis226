@@ -424,6 +424,44 @@ router.post('/pedidos', async (req, res) => {
       VALUES ($1, $2, $3, $4, $5)
     `, [pedido.id_pedido, id_turno, pago.id_metodo, pago.monto_pagado, monto_cambio])
 
+    // 10. Descontar ingredientes del inventario según recetas
+    await client.query(`
+      UPDATE Ingredientes i
+      SET stock_actual = GREATEST(0, i.stock_actual - d.total_deducir)
+      FROM (
+        SELECT r.id_ingrediente, SUM(r.cantidad * dp.cantidad) AS total_deducir
+        FROM detalle_pedido dp
+        JOIN receta r ON r.id_producto = dp.id_producto
+        WHERE dp.id_pedido = $1
+        GROUP BY r.id_ingrediente
+      ) d
+      WHERE i.id_insumo = d.id_ingrediente
+    `, [pedido.id_pedido])
+
+    // 11. Recalcular agotado y valor_inventario para los ingredientes afectados
+    await client.query(`
+      UPDATE Ingredientes
+      SET agotado          = (stock_actual <= 0),
+          valor_inventario = stock_actual * COALESCE(costo_unitario_avg, 0)
+      WHERE id_insumo IN (
+        SELECT DISTINCT r.id_ingrediente
+        FROM detalle_pedido dp
+        JOIN receta r ON r.id_producto = dp.id_producto
+        WHERE dp.id_pedido = $1
+      )
+    `, [pedido.id_pedido])
+
+    // 12. Marcar productos como no disponibles si un ingrediente se agotó
+    await client.query(`
+      UPDATE producto p
+      SET disponible = false
+      FROM receta r
+      JOIN Ingredientes i ON i.id_insumo = r.id_ingrediente
+      WHERE r.id_producto = p.id_producto
+        AND i.agotado = true
+        AND p.disponible = true
+    `)
+
     await client.query('COMMIT')
 
     res.status(201).json({
@@ -445,6 +483,160 @@ router.post('/pedidos', async (req, res) => {
     await client.query('ROLLBACK')
     console.error('[POST /api/caja/pedidos]', err.message)
     res.status(500).json({ error: 'Error al crear el pedido' })
+  } finally {
+    client.release()
+  }
+})
+
+
+// ═══════════════════════════════════════════════════════════
+// GET /api/caja/historial
+// ───────────────────────────────────────────────────────────
+// Devuelve los últimos 50 pedidos con sus ítems, estado y pago.
+// ═══════════════════════════════════════════════════════════
+router.get('/historial', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        p.id_pedido,
+        p.numero_ticket,
+        p.hora_pedido,
+        p.subtotal,
+        p.descuento_pct,
+        p.descuento_monto,
+        p.total,
+        p.instrucciones,
+        ep.nombre AS estado,
+        mp.nombre AS metodo_pago,
+        pa.monto_pagado,
+        pa.monto_cambio,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'nombre',          prod.nombre,
+              'cantidad',        dp.cantidad,
+              'tipo_precio',     dp.tipo_precio,
+              'precio_unitario', dp.precio_unitario,
+              'subtotal',        dp.subtotal
+            ) ORDER BY dp.id_detalle
+          ) FILTER (WHERE dp.id_detalle IS NOT NULL),
+          '[]'
+        ) AS items
+      FROM pedido p
+      JOIN  estado_pedido ep ON ep.id_estado  = p.id_estado
+      LEFT JOIN pago        pa ON pa.id_pedido  = p.id_pedido
+      LEFT JOIN metodo_pago mp ON mp.id_metodo   = pa.id_metodo
+      LEFT JOIN detalle_pedido dp   ON dp.id_pedido  = p.id_pedido
+      LEFT JOIN producto       prod ON prod.id_producto = dp.id_producto
+      GROUP BY p.id_pedido, ep.nombre, mp.nombre, pa.monto_pagado, pa.monto_cambio
+      ORDER BY p.hora_pedido DESC
+      LIMIT 50
+    `)
+    res.json(rows)
+  } catch (err) {
+    console.error('[GET /api/caja/historial]', err.message)
+    res.status(500).json({ error: 'Error al obtener historial' })
+  }
+})
+
+
+// ═══════════════════════════════════════════════════════════
+// POST /api/caja/pedidos/:id/anular
+// ───────────────────────────────────────────────────────────
+// Cambia el estado del pedido a ANULADO y repone el stock
+// de los ingredientes consumidos por sus recetas.
+// ═══════════════════════════════════════════════════════════
+router.post('/pedidos/:id/anular', async (req, res) => {
+  const { id } = req.params
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    // Verificar que el pedido existe y no está ya anulado
+    const { rows: pedidos } = await client.query(
+      `SELECT p.id_pedido, ep.nombre AS estado
+       FROM pedido p
+       JOIN estado_pedido ep ON ep.id_estado = p.id_estado
+       WHERE p.id_pedido = $1`,
+      [id]
+    )
+    if (pedidos.length === 0) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Pedido no encontrado' })
+    }
+    if (pedidos[0].estado === 'ANULADO') {
+      await client.query('ROLLBACK')
+      return res.status(409).json({ error: 'El pedido ya está anulado' })
+    }
+
+    // Obtener id del estado ANULADO
+    const { rows: estados } = await client.query(
+      `SELECT id_estado FROM estado_pedido WHERE nombre = 'ANULADO' LIMIT 1`
+    )
+    if (estados.length === 0) {
+      await client.query('ROLLBACK')
+      return res.status(500).json({ error: 'Estado ANULADO no existe en la BD' })
+    }
+    const id_estado_anulado = estados[0].id_estado
+
+    // Actualizar estado del pedido
+    await client.query(
+      `UPDATE pedido SET id_estado = $1 WHERE id_pedido = $2`,
+      [id_estado_anulado, id]
+    )
+
+    // Registrar cambio en historial
+    await client.query(
+      `INSERT INTO historial_estado_pedido (id_pedido, id_estado, fecha) VALUES ($1, $2, NOW())`,
+      [id, id_estado_anulado]
+    )
+
+    // Reponer stock de los ingredientes según las recetas del pedido
+    await client.query(`
+      UPDATE Ingredientes i
+      SET stock_actual = i.stock_actual + d.total_reponer
+      FROM (
+        SELECT r.id_ingrediente, SUM(r.cantidad * dp.cantidad) AS total_reponer
+        FROM detalle_pedido dp
+        JOIN receta r ON r.id_producto = dp.id_producto
+        WHERE dp.id_pedido = $1
+        GROUP BY r.id_ingrediente
+      ) d
+      WHERE i.id_insumo = d.id_ingrediente
+    `, [id])
+
+    // Recalcular agotado y valor_inventario
+    await client.query(`
+      UPDATE Ingredientes
+      SET agotado          = (stock_actual <= 0),
+          valor_inventario = stock_actual * COALESCE(costo_unitario_avg, 0)
+      WHERE id_insumo IN (
+        SELECT DISTINCT r.id_ingrediente
+        FROM detalle_pedido dp
+        JOIN receta r ON r.id_producto = dp.id_producto
+        WHERE dp.id_pedido = $1
+      )
+    `, [id])
+
+    // Re-habilitar productos cuyo ingredientes ya no están agotados
+    await client.query(`
+      UPDATE producto p
+      SET disponible = true
+      WHERE p.disponible = false
+        AND NOT EXISTS (
+          SELECT 1 FROM receta r
+          JOIN Ingredientes i ON i.id_insumo = r.id_ingrediente
+          WHERE r.id_producto = p.id_producto
+            AND i.agotado = true
+        )
+    `)
+
+    await client.query('COMMIT')
+    res.json({ ok: true, mensaje: 'Pedido anulado y stock repuesto' })
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('[POST /api/caja/pedidos/:id/anular]', err.message)
+    res.status(500).json({ error: 'Error al anular el pedido' })
   } finally {
     client.release()
   }

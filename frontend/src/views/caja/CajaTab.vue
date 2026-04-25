@@ -16,6 +16,12 @@
       </div>
       <div class="turno-acciones">
         <button
+          class="btn-turno btn-historial"
+          @click="mostrarHistorial = true"
+        >
+          Historial
+        </button>
+        <button
           v-if="!turno && !verificando"
           class="btn-turno btn-abrir"
           @click="mostrarApertura = true"
@@ -131,6 +137,13 @@
       @cerrado="onTurnoCerrado"
     />
 
+    <!-- Panel historial -->
+    <CajaHistorialPanel
+      v-if="mostrarHistorial"
+      @close="mostrarHistorial = false"
+      @anulado="cargarDatos"
+    />
+
     <!-- Modal recibo -->
     <CajaReceiptModal
       :show="!!ticketConfirmado"
@@ -152,6 +165,7 @@ import CajaPedidoPanel     from './CajaPedidoPanel.vue'
 import CajaReceiptModal    from './CajaReceiptModal.vue'
 import CajaAperturaModal   from './CajaAperturaModal.vue'
 import CajaCierreModal     from './CajaCierreModal.vue'
+import CajaHistorialPanel  from './CajaHistorialPanel.vue'
 
 const API = 'http://localhost:3000/api/caja'
 
@@ -180,8 +194,9 @@ async function verificarTurno() {
   }
 }
 
-const mostrarApertura = ref(false)
-const mostrarCierre   = ref(false)
+const mostrarApertura  = ref(false)
+const mostrarCierre    = ref(false)
+const mostrarHistorial = ref(false)
 
 function onTurnoAbierto(nuevoTurno) {
   turno.value         = nuevoTurno
@@ -471,6 +486,13 @@ if (typeof window !== 'undefined') {
   border: none;
   transition: background 0.15s;
 }
+
+.btn-historial {
+  background: #fff;
+  color: #555;
+  border: 1px solid #ddd;
+}
+.btn-historial:hover { background: #f5f5f5; color: #222; }
 
 .btn-abrir {
   background: #D90B31;

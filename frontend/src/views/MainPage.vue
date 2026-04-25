@@ -109,11 +109,41 @@ onMounted(() => {
   updateTime()
   timer = setInterval(updateTime, 1000)
   window.addEventListener('keydown', handleKeydown)
+  
+  // ── Testing Helper: window.restock() ─────────────────────
+  window.restock = async () => {
+    const hardcoded = {
+      1: 150, 2: 80,  3: 50,  4: 90,  5: 200, 6: 40,  7: 10,  8: 12,
+      9: 8,  10: 500, 11: 5,  12: 6,  13: 4,  14: 3,  15: 8,  16: 3,
+      17: 5,  18: 6,  19: 5,  20: 3,  21: 2,  22: 20, 23: 200, 24: 200,
+      25: 300, 26: 300, 27: 200, 28: 150, 29: 30, 30: 40, 31: 10000
+    }
+    console.log("%c🚀 Iniciando reabastecimiento...", "color: #F2CB05; font-weight: bold;")
+
+    const ings = await fetch('http://localhost:3000/api/inventario/ingredientes').then(r => r.json())
+    const missing = ings.filter(i => !(i.id_insumo in hardcoded))
+    if (missing.length > 0) {
+      console.warn('⚠️ Ingredientes sin valor hardcodeado (no serán reseteados):\n' +
+        missing.map(i => `  id=${i.id_insumo}  ${i.nombre}`).join('\n'))
+    }
+
+    for (const [id, stock] of Object.entries(hardcoded)) {
+      await fetch(`http://localhost:3000/api/inventario/ingredientes/${id}/force-stock`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stock }),
+      })
+    }
+
+    console.log("%c✨ ¡Inventario reseteado!", "color: #2a9d5c; font-weight: bold;")
+    alert("Reabastecimiento completado.")
+  }
 })
 
 onUnmounted(() => {
   if (timer) clearInterval(timer)
   window.removeEventListener('keydown', handleKeydown)
+  delete window.restock
 })
 </script>
 
