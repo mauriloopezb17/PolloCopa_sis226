@@ -99,7 +99,7 @@ router.get('/turno-actual', async (req, res) => {
     if (turnos.length === 0) {
       // Incluir el monto_cierre del último turno cerrado para mostrarlo en la apertura
       const { rows: ultimo } = await pool.query(
-        `SELECT COALESCE(monto_cierre, 0) AS monto_cierre
+        `SELECT COALESCE(total_calculado_en_caja, 0) AS monto_cierre
          FROM   turno_caja
          WHERE  estado = 'CERRADO'
          ORDER  BY cierre DESC
@@ -127,6 +127,18 @@ router.get('/turno-actual', async (req, res) => {
     const total_neto_turno = ventas.reduce((s, v) => s + Number(v.total_neto), 0)
     const total_calculado  = Number(turno.monto_apertura) + total_neto_turno
 
+    // Desglose teórico para el cierre
+    const ventas_efectivo = ventas
+      .filter(v => v.metodo.toUpperCase() === 'EFECTIVO')
+      .reduce((s, v) => s + Number(v.total_neto), 0)
+    
+    const ventas_transferencia = ventas
+      .filter(v => v.metodo.toUpperCase() !== 'EFECTIVO')
+      .reduce((s, v) => s + Number(v.total_neto), 0)
+
+    const total_efectivo_teorico      = Number(turno.monto_apertura) + ventas_efectivo
+    const total_transferencia_teorico = ventas_transferencia
+
     res.json({
       abierto:          true,
       id_turno:         turno.id_turno,
@@ -141,6 +153,8 @@ router.get('/turno-actual', async (req, res) => {
       })),
       total_neto_turno,
       total_calculado,
+      total_efectivo_teorico,
+      total_transferencia_teorico,
     })
   } catch (err) {
     console.error('[GET /api/caja/turno-actual]', err.message)
@@ -168,7 +182,7 @@ router.post('/apertura', async (_req, res) => {
 
     // Tomar el monto_cierre del turno anterior como monto_apertura
     const { rows: ultimo } = await pool.query(
-      `SELECT COALESCE(monto_cierre, 0) AS monto_cierre
+      `SELECT COALESCE(total_calculado_en_caja, 0) AS monto_cierre
        FROM   turno_caja
        WHERE  estado = 'CERRADO'
        ORDER  BY cierre DESC
@@ -199,10 +213,14 @@ router.post('/apertura', async (_req, res) => {
 // Body: { "monto_cierre": 850.00 }
 // ═══════════════════════════════════════════════════════════
 router.post('/cierre', async (req, res) => {
-  const { monto_cierre } = req.body
+  console.log('[POST /api/caja/cierre] Request body:', req.body)
+  const { monto_cierre_efectivo, monto_cierre_transaccion } = req.body
 
-  if (monto_cierre === undefined || isNaN(Number(monto_cierre)) || Number(monto_cierre) < 0) {
-    return res.status(400).json({ error: 'monto_cierre debe ser un número >= 0' })
+  if (monto_cierre_efectivo === undefined || isNaN(Number(monto_cierre_efectivo)) || Number(monto_cierre_efectivo) < 0) {
+    return res.status(400).json({ error: 'monto_cierre_efectivo debe ser un número >= 0' })
+  }
+  if (monto_cierre_transaccion === undefined || isNaN(Number(monto_cierre_transaccion)) || Number(monto_cierre_transaccion) < 0) {
+    return res.status(400).json({ error: 'monto_cierre_transaccion debe ser un número >= 0' })
   }
 
   const client = await pool.connect()
@@ -222,32 +240,40 @@ router.post('/cierre', async (req, res) => {
     }
     const turno = turnos[0]
 
+    // Calcular totales teóricos
     const { rows: ventas } = await client.query(
-      `SELECT COALESCE(SUM(monto_pagado - monto_cambio), 0) AS total_neto
-       FROM   pago
-       WHERE  id_turno_caja = $1`,
+      `SELECT mp.nombre, COALESCE(SUM(monto_pagado - monto_cambio), 0) AS total_neto
+       FROM   pago pa
+         JOIN metodo_pago mp ON mp.id_metodo = pa.id_metodo
+       WHERE  pa.id_turno_caja = $1
+       GROUP  BY mp.nombre`,
       [turno.id_turno]
     )
-    const total_neto      = Number(ventas[0].total_neto)
-    const total_calculado = Number(turno.monto_apertura) + total_neto
+    
+    const total_neto_ventas = ventas.reduce((s, v) => s + Number(v.total_neto), 0)
+    const total_calculado_teorico = Number(turno.monto_apertura) + total_neto_ventas
+
+    const total_calculado_en_caja = Number(monto_cierre_efectivo) + Number(monto_cierre_transaccion)
 
     const { rows: updated } = await client.query(
       `UPDATE turno_caja
-       SET    cierre          = NOW(),
-              monto_cierre    = $1,
-              total_calculado = $2,
-              estado          = 'CERRADO'
-       WHERE  id_turno = $3
-       RETURNING id_turno, apertura, cierre, monto_apertura, monto_cierre, total_calculado`,
-      [Number(monto_cierre), total_calculado, turno.id_turno]
+       SET    cierre                    = NOW(),
+              monto_cierre_efectivo     = $1,
+              monto_cierre_transaccion  = $2,
+              total_calculado_teorico   = $3,
+              total_calculado_en_caja   = $4,
+              estado                    = 'CERRADO'
+       WHERE  id_turno = $5
+       RETURNING id_turno, apertura, cierre, monto_apertura, total_calculado_en_caja AS monto_cierre, total_calculado_teorico AS total_calculado`,
+      [Number(monto_cierre_efectivo), Number(monto_cierre_transaccion), total_calculado_teorico, total_calculado_en_caja, turno.id_turno]
     )
 
     await client.query('COMMIT')
     res.json({ ok: true, turno: updated[0] })
   } catch (err) {
     await client.query('ROLLBACK')
-    console.error('[POST /api/caja/cierre]', err.message)
-    res.status(500).json({ error: 'Error al cerrar el turno' })
+    console.error('[POST /api/caja/cierre] FULL ERROR:', err)
+    res.status(500).json({ error: 'Error al cerrar el turno', details: err.message, stack: err.stack })
   } finally {
     client.release()
   }

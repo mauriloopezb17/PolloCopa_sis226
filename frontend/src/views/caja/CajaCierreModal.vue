@@ -75,29 +75,80 @@
             </div>
 
             <!-- Monto físico -->
-            <div class="seccion">
-              <label class="campo-label">Monto físico contado en caja</label>
-              <div class="input-wrap">
-                <span class="prefix">Bs</span>
-                <input
-                  ref="inputRef"
-                  v-model.number="montoCierre"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0.00"
-                  class="input-monto"
-                  :disabled="cerrando"
-                />
+            <div class="seccion-montos">
+              <!-- EFECTIVO -->
+              <div class="seccion">
+                <div class="label-with-theoretical">
+                  <label class="campo-label">Efectivo físico en caja</label>
+                  <span class="theoretical-hint">Sistema: Bs {{ fmt(resumen.total_efectivo_teorico) }}</span>
+                </div>
+                <div class="input-wrap">
+                  <span class="prefix">Bs</span>
+                  <input
+                    v-model.number="montoEfectivo"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    class="input-monto"
+                    :disabled="cerrando"
+                  />
+                </div>
+                <div
+                  v-if="montoEfectivo !== null && montoEfectivo !== ''"
+                  class="diferencia"
+                  :class="{ negativa: diffEfectivo < 0, cero: diffEfectivo === 0 }"
+                >
+                  Dif. Efectivo: Bs {{ fmt(Math.abs(diffEfectivo)) }}
+                  <span v-if="diffEfectivo > 0">&nbsp;(sobrante)</span>
+                  <span v-else-if="diffEfectivo < 0">&nbsp;(faltante)</span>
+                </div>
+              </div>
+
+              <!-- TRANSFERENCIA -->
+              <div class="seccion">
+                <div class="label-with-theoretical">
+                  <label class="campo-label">Transferencias / Otros</label>
+                  <span class="theoretical-hint">Sistema: Bs {{ fmt(resumen.total_transferencia_teorico) }}</span>
+                </div>
+                <div class="input-wrap">
+                  <span class="prefix">Bs</span>
+                  <input
+                    v-model.number="montoTransferencia"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    class="input-monto"
+                    :disabled="cerrando"
+                  />
+                </div>
+                <div
+                  v-if="montoTransferencia !== null && montoTransferencia !== ''"
+                  class="diferencia"
+                  :class="{ negativa: diffTransferencia < 0, cero: diffTransferencia === 0 }"
+                >
+                  Dif. Transf: Bs {{ fmt(Math.abs(diffTransferencia)) }}
+                  <span v-if="diffTransferencia > 0">&nbsp;(sobrante)</span>
+                  <span v-else-if="diffTransferencia < 0">&nbsp;(faltante)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Total General y Diferencia Total -->
+            <div class="total-cierre-resumen">
+              <div class="resumen-row">
+                <span>Total contado en caja</span>
+                <span class="bold">Bs {{ fmt(montoTotalReportado) }}</span>
               </div>
               <div
-                v-if="montoCierre !== null && montoCierre !== ''"
-                class="diferencia"
-                :class="{ negativa: diferencia < 0, cero: diferencia === 0 }"
+                v-if="montoTotalReportado > 0"
+                class="diferencia total-diff"
+                :class="{ negativa: diferenciaTotal < 0, cero: diferenciaTotal === 0 }"
               >
-                Diferencia: Bs {{ fmt(Math.abs(diferencia)) }}
-                <span v-if="diferencia > 0">&nbsp;(sobrante)</span>
-                <span v-else-if="diferencia < 0">&nbsp;(faltante)</span>
+                Diferencia Total: Bs {{ fmt(Math.abs(diferenciaTotal)) }}
+                <span v-if="diferenciaTotal > 0">&nbsp;(sobrante)</span>
+                <span v-else-if="diferenciaTotal < 0">&nbsp;(faltante)</span>
                 <span v-else>&nbsp;(cuadrado)</span>
               </div>
             </div>
@@ -134,17 +185,19 @@ const emit = defineEmits(['close', 'cerrado'])
 
 const API = 'http://localhost:3000/api/caja'
 
-const cargando    = ref(false)
-const cerrando    = ref(false)
-const errorMsg    = ref(null)
-const resumen     = ref(null)
-const montoCierre = ref(null)
+const cargando           = ref(false)
+const cerrando           = ref(false)
+const errorMsg           = ref(null)
+const resumen            = ref(null)
+const montoEfectivo      = ref(null)
+const montoTransferencia = ref(null)
 
 watch(() => props.show, async (visible) => {
   if (!visible) return
-  montoCierre.value = null
-  errorMsg.value    = null
-  resumen.value     = null
+  montoEfectivo.value      = null
+  montoTransferencia.value = null
+  errorMsg.value           = null
+  resumen.value            = null
   await cargarResumen()
 })
 
@@ -162,16 +215,29 @@ async function cargarResumen() {
   }
 }
 
-const diferencia = computed(() => {
-  if (!resumen.value || montoCierre.value === null || montoCierre.value === '') return 0
-  return Number(montoCierre.value) - resumen.value.total_calculado
+const montoTotalReportado = computed(() => {
+  return Number(montoEfectivo.value || 0) + Number(montoTransferencia.value || 0)
+})
+
+const diffEfectivo = computed(() => {
+  if (!resumen.value || montoEfectivo.value === null || montoEfectivo.value === '') return 0
+  return Number(montoEfectivo.value) - resumen.value.total_efectivo_teorico
+})
+
+const diffTransferencia = computed(() => {
+  if (!resumen.value || montoTransferencia.value === null || montoTransferencia.value === '') return 0
+  return Number(montoTransferencia.value) - resumen.value.total_transferencia_teorico
+})
+
+const diferenciaTotal = computed(() => {
+  if (!resumen.value) return 0
+  return montoTotalReportado.value - resumen.value.total_calculado
 })
 
 const puedeConfirmar = computed(() =>
   resumen.value !== null &&
-  montoCierre.value !== null &&
-  montoCierre.value !== '' &&
-  Number(montoCierre.value) >= 0
+  montoEfectivo.value !== null && montoEfectivo.value !== '' &&
+  montoTransferencia.value !== null && montoTransferencia.value !== ''
 )
 
 async function confirmarCierre() {
@@ -182,7 +248,10 @@ async function confirmarCierre() {
     const res  = await fetch(`${API}/cierre`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ monto_cierre: Number(montoCierre.value) }),
+      body:    JSON.stringify({ 
+        monto_cierre_efectivo:    Number(montoEfectivo.value),
+        monto_cierre_transaccion: Number(montoTransferencia.value)
+      }),
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'No se pudo cerrar el turno')
@@ -388,10 +457,45 @@ function formatFecha(iso) {
   color: #222;
 }
 
+.seccion-montos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.label-with-theoretical {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.theoretical-hint {
+  font-size: 11px;
+  color: #999;
+  font-weight: 600;
+}
+
+.total-cierre-resumen {
+  margin-top: 8px;
+  padding: 12px 16px;
+  background: #f8f8f8;
+  border-radius: 8px;
+  border: 1px dashed #ddd;
+}
+
+.total-diff {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #eee;
+  text-align: right;
+}
+
 .diferencia {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: #2a9d5c;
+  margin-top: 4px;
 }
 .diferencia.negativa { color: #D90B31; }
 .diferencia.cero { color: #2a9d5c; }

@@ -2,6 +2,9 @@
   "name": "pollocopa-sis226",
   "private": true,
   "scripts": {
-    "stack": "bash start.sh"
+    "stack": "npm run stack --prefix backend"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2"
   }
 }

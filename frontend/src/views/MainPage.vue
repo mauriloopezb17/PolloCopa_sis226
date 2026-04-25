@@ -91,7 +91,6 @@ onUnmounted(() => {
 .app-wrapper {
   min-height: 100vh;
   background: #ffffff;
-  font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
   display: flex;
   flex-direction: column;
 }

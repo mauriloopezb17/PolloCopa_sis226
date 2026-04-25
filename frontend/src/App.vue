@@ -11,5 +11,6 @@
 
 html, body, #app {
   height: 100%;
+  font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
 }
 </style>

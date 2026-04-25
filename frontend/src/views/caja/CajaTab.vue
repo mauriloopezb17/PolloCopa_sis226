@@ -75,13 +75,30 @@
         <div v-else-if="cargando" class="catalogo-mensaje">
           <p>Cargando productos...</p>
         </div>
-        <div v-else class="catalogo-grid">
-          <CajaProductoCard
-            v-for="prod in productosFiltrados"
-            :key="prod.id_producto"
-            :producto="prod"
-            @añadir="añadirAlPedido"
-          />
+        <div v-else class="catalogo-lista">
+          <div
+            v-for="grupo in productosAgrupados"
+            :key="grupo.id"
+            class="categoria-grupo"
+          >
+            <div class="grupo-header">
+              <span class="grupo-linea"></span>
+              <h3 class="grupo-titulo">{{ grupo.nombre }}</h3>
+            </div>
+            
+            <div class="catalogo-grid">
+              <CajaProductoCard
+                v-for="prod in grupo.productos"
+                :key="prod.id_producto"
+                :producto="prod"
+                @añadir="añadirAlPedido"
+              />
+            </div>
+          </div>
+
+          <div v-if="productosAgrupados.length === 0" class="catalogo-mensaje">
+            <p>No hay productos en esta categoría.</p>
+          </div>
         </div>
       </section>
 
@@ -219,6 +236,35 @@ const filtroCategoria = ref(null)
 const productosFiltrados = computed(() => {
   if (filtroCategoria.value === null) return productos.value
   return productos.value.filter(p => p.id_categoria_producto === filtroCategoria.value)
+})
+
+const productosAgrupados = computed(() => {
+  const grupos = []
+  const filtrados = productosFiltrados.value
+
+  // Usamos el orden de la lista de categorías
+  categorias.value.forEach(cat => {
+    const productosDeCat = filtrados.filter(p => p.id_categoria_producto === cat.id)
+    if (productosDeCat.length > 0) {
+      grupos.push({
+        id: cat.id,
+        nombre: cat.nombre,
+        productos: productosDeCat
+      })
+    }
+  })
+
+  // Por si hay productos sin categoría asignada en la BD
+  const sinCat = filtrados.filter(p => !categorias.value.find(c => c.id === p.id_categoria_producto))
+  if (sinCat.length > 0) {
+    grupos.push({
+      id: 'misc',
+      nombre: 'Otros',
+      productos: sinCat
+    })
+  }
+
+  return grupos
 })
 
 // ── Pedido ─────────────────────────────────────────────────
@@ -545,10 +591,42 @@ if (typeof window !== 'undefined') {
   color: #F2CB05;
 }
 
-.catalogo-grid {
+.catalogo-lista {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 24px;
+  padding: 8px 0 40px;
+  background: #f9f9f9;
+}
+
+.categoria-grupo {
+  margin-bottom: 24px;
+}
+
+.grupo-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px 8px;
+}
+
+.grupo-linea {
+  width: 4px;
+  height: 18px;
+  background: #F2CB05;
+  border-radius: 2px;
+}
+
+.grupo-titulo {
+  font-size: 14px;
+  font-weight: 800;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: 0;
+}
+
+.catalogo-grid {
+  padding: 8px 24px;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 12px;
