@@ -17,7 +17,7 @@
       <div class="turno-acciones">
         <button
           class="btn-turno btn-historial"
-          @click="mostrarHistorial = true"
+          @click="mostrarAuthHistorial = true"
         >
           Historial
         </button>
@@ -137,6 +137,13 @@
       @cerrado="onTurnoCerrado"
     />
 
+    <!-- Auth modal historial -->
+    <CajaHistorialAuthModal
+      v-if="mostrarAuthHistorial"
+      @autorizado="mostrarAuthHistorial = false; mostrarHistorial = true"
+      @cancelar="mostrarAuthHistorial = false"
+    />
+
     <!-- Panel historial -->
     <CajaHistorialPanel
       v-if="mostrarHistorial"
@@ -165,7 +172,8 @@ import CajaPedidoPanel     from './CajaPedidoPanel.vue'
 import CajaReceiptModal    from './CajaReceiptModal.vue'
 import CajaAperturaModal   from './CajaAperturaModal.vue'
 import CajaCierreModal     from './CajaCierreModal.vue'
-import CajaHistorialPanel  from './CajaHistorialPanel.vue'
+import CajaHistorialPanel     from './CajaHistorialPanel.vue'
+import CajaHistorialAuthModal from './CajaHistorialAuthModal.vue'
 
 const API = 'http://localhost:3000/api/caja'
 
@@ -196,6 +204,7 @@ async function verificarTurno() {
 
 const mostrarApertura  = ref(false)
 const mostrarCierre    = ref(false)
+const mostrarAuthHistorial = ref(false)
 const mostrarHistorial = ref(false)
 
 function onTurnoAbierto(nuevoTurno) {
