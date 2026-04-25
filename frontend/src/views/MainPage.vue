@@ -14,7 +14,7 @@
 
       <nav class="navbar-center">
         <button
-          v-for="tab in tabs"
+          v-for="tab in visibleTabs"
           :key="tab.id"
           class="nav-tab"
           :class="{ active: activeTab === tab.id }"
@@ -37,7 +37,8 @@
     <main class="content-area">
       <transition name="fade-slide" mode="out-in">
         <div :key="activeTab" class="content-panel">
-          <InventarioTab v-if="activeTab === 'inventario'" />
+          <MenuTab v-if="activeTab === 'menu'" />
+          <InventarioTab v-else-if="activeTab === 'inventario'" />
           <CajaTab v-else-if="activeTab === 'caja'" />
           <CocinaTab v-else-if="activeTab === 'cocina'" />
         </div>
@@ -47,19 +48,52 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import MenuTab from './menu/MenuTab.vue'
 import InventarioTab from './inventario/InventarioView.vue'
 import CajaTab from './caja/CajaTab.vue'
 import CocinaTab from './cocina/CocinaPedidos.vue'
 
 const tabs = [
+  { id: 'menu', label: 'Menu' },
   { id: 'inventario', label: 'Inventario' },
   { id: 'caja', label: 'Caja' },
   { id: 'cocina', label: 'Cocina' },
 ]
 
-const activeTab = ref('inventario')
+const activeTab = ref('menu')
 const currentTime = ref('')
+
+// ── Konami Code (Security by Obscurity) ───────────────────
+const isAdmin = ref(false)
+const konamiSequence = [
+  'ArrowUp', 'ArrowUp', 
+  'ArrowDown', 'ArrowDown', 
+  'ArrowLeft', 'ArrowRight', 
+  'ArrowLeft', 'ArrowRight', 
+  'b', 'a', 'Enter'
+]
+let konamiIndex = 0
+
+function handleKeydown(e) {
+  // Ignorar si se está escribiendo en un input
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+
+  if (e.key === konamiSequence[konamiIndex]) {
+    konamiIndex++
+    if (konamiIndex === konamiSequence.length) {
+      isAdmin.value = true
+      konamiIndex = 0
+    }
+  } else {
+    konamiIndex = 0
+  }
+}
+
+const visibleTabs = computed(() => {
+  if (isAdmin.value) return tabs
+  return tabs.filter(t => t.id === 'menu')
+})
 
 function updateTime() {
   const now = new Date()
@@ -74,10 +108,12 @@ let timer = null
 onMounted(() => {
   updateTime()
   timer = setInterval(updateTime, 1000)
+  window.addEventListener('keydown', handleKeydown)
 })
 
 onUnmounted(() => {
   if (timer) clearInterval(timer)
+  window.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
@@ -280,5 +316,42 @@ onUnmounted(() => {
 .fade-slide-leave-to {
   opacity: 0;
   transform: translateY(-4px);
+}
+
+/* ======================================
+   RESPONSIVENESS
+====================================== */
+@media (max-width: 768px) {
+  .navbar {
+    height: 60px;
+    padding: 0 12px;
+  }
+
+  .logo-text, .time-badge {
+    display: none;
+  }
+
+  .logo-img {
+    height: 40px;
+    width: 40px;
+  }
+
+  .navbar-center {
+    flex: 1;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .nav-tab {
+    padding: 8px 12px 10px;
+  }
+
+  .tab-label {
+    font-size: 11px;
+  }
+
+  .content-panel {
+    min-height: calc(100vh - 60px);
+  }
 }
 </style>

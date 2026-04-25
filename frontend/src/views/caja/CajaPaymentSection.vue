@@ -12,23 +12,29 @@
       </option>
     </select>
 
-    <label class="pago-label">Monto recibido (Bs)</label>
-    <input
-      type="number"
-      v-model.number="montoPagado"
-      class="pago-input"
-      min="0"
-      step="0.50"
-      placeholder="0.00"
-    />
+    <template v-if="!exactAmount">
+      <label class="pago-label">Monto recibido (Bs)</label>
+      <input
+        type="number"
+        v-model.number="montoPagado"
+        class="pago-input"
+        min="0"
+        step="0.50"
+        placeholder="0.00"
+      />
 
-    <div class="cambio-row" :class="{ 'cambio-error': cambio < 0 }">
-      <span>Cambio:</span>
-      <span class="cambio-valor">Bs {{ formatPrecio(Math.max(cambio, 0)) }}</span>
+      <div class="cambio-row" :class="{ 'cambio-error': cambio < 0 }">
+        <span>Cambio:</span>
+        <span class="cambio-valor">Bs {{ formatPrecio(Math.max(cambio, 0)) }}</span>
+      </div>
+      <p v-if="cambio < 0" class="cambio-advertencia">
+        Monto insuficiente (faltan Bs {{ formatPrecio(Math.abs(cambio)) }})
+      </p>
+    </template>
+    <div v-else class="monto-kiosk">
+      <span class="kiosk-label">Monto a pagar:</span>
+      <span class="kiosk-valor">Bs {{ formatPrecio(subtotal) }}</span>
     </div>
-    <p v-if="cambio < 0" class="cambio-advertencia">
-      Monto insuficiente (faltan Bs {{ formatPrecio(Math.abs(cambio)) }})
-    </p>
 
     <div class="factura-separator">
       <span>Datos de facturación <em>(opcional)</em></span>
@@ -66,6 +72,10 @@ const props = defineProps({
   metodosPago: {
     type: Array,
     required: true
+  },
+  exactAmount: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -77,16 +87,27 @@ const nit                = ref('')
 const razonSocial        = ref('')
 
 const cambio = computed(() => {
+  if (props.exactAmount) return 0
   if (montoPagado.value == null || montoPagado.value === '') return 0
   return montoPagado.value - props.subtotal
 })
 
 const valido = computed(() => {
-  return metodoSeleccionado.value != null &&
+  const hasMethod = metodoSeleccionado.value != null
+  if (props.exactAmount) {
+    return hasMethod && props.subtotal > 0
+  }
+  return hasMethod &&
          montoPagado.value != null &&
          montoPagado.value > 0 &&
          cambio.value >= 0
 })
+
+watch([() => props.subtotal, () => props.exactAmount], ([newSub, isExact]) => {
+  if (isExact) {
+    montoPagado.value = newSub
+  }
+}, { immediate: true })
 
 watch([metodoSeleccionado, montoPagado, valido, nit, razonSocial], () => {
   emit('updatePago', {
@@ -185,6 +206,30 @@ defineExpose({ reset })
   font-weight: 600;
   margin-top: 4px;
   text-align: right;
+}
+
+.monto-kiosk {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: #f9f9f9;
+  border: 1.5px dashed #F2CB05;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.kiosk-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #666;
+  text-transform: uppercase;
+}
+
+.kiosk-valor {
+  font-size: 18px;
+  font-weight: 800;
+  color: #D90B31;
 }
 
 .factura-separator {

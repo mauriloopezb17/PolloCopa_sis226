@@ -313,7 +313,7 @@ router.post('/cierre', async (req, res) => {
 //   8. Insertar el pago con el cambio calculado
 // ═══════════════════════════════════════════════════════════
 router.post('/pedidos', async (req, res) => {
-  const { items, pago, instrucciones, NIT, razon_social, descuento_pct = 0 } = req.body
+  const { items, pago, instrucciones, NIT, razon_social, descuento_pct = 0, origen_web = false } = req.body
   
   // Validar descuento
   const d_pct = Number(descuento_pct)
@@ -387,9 +387,9 @@ router.post('/pedidos', async (req, res) => {
     // 5. Insertar pedido
     const { rows: pedidoRows } = await client.query(`
       INSERT INTO pedido (id_estado, numero_ticket, origen_web, subtotal, descuento_pct, descuento_monto, total, instrucciones, nit, razon_social)
-      VALUES ($1, $2, false, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING id_pedido, numero_ticket, hora_pedido
-    `, [id_estado, numero_ticket, subtotal, d_pct, descuento_monto, total, instrucciones || null, NIT || null, razon_social || null])
+    `, [id_estado, numero_ticket, !!origen_web, subtotal, d_pct, descuento_monto, total, instrucciones || null, NIT || null, razon_social || null])
 
     const pedido = pedidoRows[0]
 

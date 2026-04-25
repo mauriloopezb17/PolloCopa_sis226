@@ -47,7 +47,7 @@
           <span>Bs {{ formatPrecio(subtotal) }}</span>
         </div>
         
-        <div class="total-row discount-row">
+        <div v-if="allowDiscount" class="total-row discount-row">
           <div class="discount-label">
             <span>Descuento</span>
             <div class="discount-input-wrap">
@@ -75,11 +75,11 @@
         </div>
       </div>
 
-      <!-- Componente de pago -->
       <CajaPaymentSection 
         ref="paymentSectionRef"
         :subtotal="totalFinal" 
         :metodos-pago="metodosPago"
+        :exact-amount="exactAmount"
         @updatePago="handlePagoUpdate"
       />
 
@@ -114,6 +114,14 @@ const props = defineProps({
   metodosPago: {
     type: Array,
     default: () => [],
+  },
+  allowDiscount: {
+    type: Boolean,
+    default: true,
+  },
+  exactAmount: {
+    type: Boolean,
+    default: false,
   },
 })
 
