@@ -2,99 +2,117 @@
   <aside class="pedido-panel">
     <!-- Encabezado -->
     <div class="pedido-header">
-      <h2 class="pedido-titulo">Pedido actual</h2>
-      <span class="pedido-ticket">{{ ticket }}</span>
-    </div>
-
-    <!-- Lista de items -->
-    <div class="pedido-items" v-if="items.length > 0">
-      <div
-        v-for="(item, idx) in items"
-        :key="idx"
-        class="pedido-item"
-      >
-        <div class="item-info">
-          <span class="item-nombre">{{ item.nombre }}</span>
-          <span class="item-tipo">{{ etiquetaTipo(item.tipo_precio) }}</span>
-        </div>
-
-        <div class="item-controls">
-          <button class="btn-qty" @click="$emit('decrementar', idx)">−</button>
-          <span class="item-qty">{{ item.cantidad }}</span>
-          <button class="btn-qty" @click="$emit('incrementar', idx)">+</button>
-        </div>
-
-        <div class="item-subtotal">
-          Bs {{ formatPrecio(item.subtotal) }}
-        </div>
-
-        <button class="btn-remove" @click="$emit('eliminar', idx)" title="Quitar">✕</button>
+      <div class="header-left">
+        <h2 class="pedido-titulo">Pedido actual</h2>
+        <span class="pedido-ticket">{{ ticket }}</span>
       </div>
+      <button v-if="showClose" class="btn-close-panel" @click="$emit('close')" title="Cerrar">✕</button>
     </div>
 
-    <!-- Vacío -->
-    <div v-else class="pedido-vacio">
-      <span class="vacio-icono">—</span>
-      <p>Aún no hay productos en el pedido.</p>
-    </div>
-
-    <!-- Totales + Pago (solo cuando hay items) -->
-    <template v-if="items.length > 0">
-      <!-- Totales -->
-      <div class="pedido-totales">
-        <div class="total-row">
-          <span>Subtotal</span>
-          <span>Bs {{ formatPrecio(subtotal) }}</span>
-        </div>
-        
-        <div v-if="allowDiscount" class="total-row discount-row">
-          <div class="discount-label">
-            <span>Descuento</span>
-            <div class="discount-input-wrap">
-              <input 
-                type="number" 
-                v-model.number="descuentoPct" 
-                min="0" 
-                max="100" 
-                step="5"
-                placeholder="0"
-                class="discount-input"
-              />
-              <span class="pct-sign">%</span>
-            </div>
-          </div>
-          <span class="discount-val" v-if="descuentoMonto > 0">
-            − Bs {{ formatPrecio(descuentoMonto) }}
-          </span>
-          <span v-else>Bs 0.00</span>
-        </div>
-
-        <div class="total-row total-final">
-          <span>Total a pagar</span>
-          <span>Bs {{ formatPrecio(totalFinal) }}</span>
-        </div>
-      </div>
-
-      <CajaPaymentSection 
-        ref="paymentSectionRef"
-        :subtotal="totalFinal" 
-        :metodos-pago="metodosPago"
-        :exact-amount="exactAmount"
-        @updatePago="handlePagoUpdate"
-      />
-
-      <!-- Acciones -->
-      <div class="pedido-acciones">
-        <button class="btn-cancelar" @click="handleCancelar">Cancelar</button>
-        <button
-          class="btn-confirmar"
-          :disabled="!pagoData.valido"
-          @click="emitConfirmar"
+    <!-- Lista de items + Todo lo demás en un área scrollable -->
+    <div class="pedido-scroll-area">
+      <!-- Lista de items -->
+      <div class="pedido-items" v-if="items.length > 0">
+        <div
+          v-for="(item, idx) in items"
+          :key="idx"
+          class="pedido-item"
         >
-          Confirmar pedido
-        </button>
+          <div class="item-info">
+            <span class="item-nombre">{{ item.nombre }}</span>
+            <span class="item-tipo">{{ etiquetaTipo(item.tipo_precio) }}</span>
+          </div>
+
+          <div class="item-controls">
+            <button class="btn-qty" @click="$emit('decrementar', idx)">−</button>
+            <span class="item-qty">{{ item.cantidad }}</span>
+            <button class="btn-qty" @click="$emit('incrementar', idx)">+</button>
+          </div>
+
+          <div class="item-subtotal">
+            Bs {{ formatPrecio(item.subtotal) }}
+          </div>
+
+          <button class="btn-remove" @click="$emit('eliminar', idx)" title="Quitar">✕</button>
+        </div>
       </div>
-    </template>
+
+      <!-- Vacío -->
+      <div v-else class="pedido-vacio">
+        <span class="vacio-icono">—</span>
+        <p>Aún no hay productos en el pedido.</p>
+      </div>
+
+      <!-- Totales + Pago (solo cuando hay items) -->
+      <template v-if="items.length > 0">
+        <!-- Instrucciones especiales -->
+        <div class="pedido-instrucciones">
+          <label for="instrucciones">Instrucciones / Notas:</label>
+          <textarea 
+            id="instrucciones"
+            v-model="instrucciones" 
+            placeholder="Ej: Sin cebolla, extra salsa..."
+            maxlength="200"
+          ></textarea>
+        </div>
+
+        <!-- Totales -->
+        <div class="pedido-totales">
+          <div class="total-row">
+            <span>Subtotal</span>
+            <span>Bs {{ formatPrecio(subtotal) }}</span>
+          </div>
+          
+          <div v-if="allowDiscount" class="total-row discount-row">
+            <div class="discount-label">
+              <span>Descuento</span>
+              <div class="discount-input-wrap">
+                <input 
+                  type="number" 
+                  v-model.number="descuentoPct" 
+                  min="0" 
+                  max="100" 
+                  step="5"
+                  placeholder="0"
+                  class="discount-input"
+                />
+                <span class="pct-sign">%</span>
+              </div>
+            </div>
+            <span class="discount-val" v-if="descuentoMonto > 0">
+              − Bs {{ formatPrecio(descuentoMonto) }}
+            </span>
+            <span v-else>Bs 0.00</span>
+          </div>
+
+          <div class="total-row total-final">
+            <span>Total a pagar</span>
+            <span>Bs {{ formatPrecio(totalFinal) }}</span>
+          </div>
+        </div>
+
+        <!-- Componente de pago -->
+        <CajaPaymentSection 
+          ref="paymentSectionRef"
+          :subtotal="totalFinal" 
+          :metodos-pago="metodosPago"
+          :exact-amount="exactAmount"
+          @updatePago="handlePagoUpdate"
+        />
+      </template>
+    </div>
+
+    <!-- Acciones (Pie fijo) -->
+    <div class="pedido-acciones" v-if="items.length > 0">
+      <button class="btn-cancelar" @click="handleCancelar">Cancelar</button>
+      <button
+        class="btn-confirmar"
+        :disabled="!pagoData.valido"
+        @click="emitConfirmar"
+      >
+        Confirmar pedido
+      </button>
+    </div>
   </aside>
 </template>
 
@@ -123,9 +141,13 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  showClose: {
+    type: Boolean,
+    default: false,
+  }
 })
 
-const emit = defineEmits(['incrementar', 'decrementar', 'eliminar', 'cancelar', 'confirmar'])
+const emit = defineEmits(['incrementar', 'decrementar', 'eliminar', 'cancelar', 'confirmar', 'close'])
 
 const paymentSectionRef = ref(null)
 
@@ -141,6 +163,7 @@ const subtotal = computed(() =>
   props.items.reduce((sum, item) => sum + Number(item.subtotal), 0)
 )
 
+const instrucciones = ref('')
 const descuentoPct = ref(null)
 const descuentoMonto = computed(() => {
   const pct = Number(descuentoPct.value || 0)
@@ -170,10 +193,12 @@ function emitConfirmar() {
     NIT:          pagoData.value.NIT,
     razon_social: pagoData.value.razon_social,
     descuento_pct: Number(descuentoPct.value || 0),
+    instrucciones: instrucciones.value,
   })
 }
 
 function reset() {
+  instrucciones.value = ''
   descuentoPct.value = null
   resetPago()
 }
@@ -210,6 +235,12 @@ function etiquetaTipo(tipo) {
   border-bottom: 2px solid #F2CB05;
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .pedido-titulo {
   font-size: 16px;
   font-weight: 800;
@@ -225,10 +256,36 @@ function etiquetaTipo(tipo) {
   border-radius: 12px;
 }
 
-/* --- Items list --- */
-.pedido-items {
+.btn-close-panel {
+  background: #f5f5f5;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-close-panel:hover {
+  background: #eee;
+  color: #D90B31;
+}
+
+/* --- Body Scroll Area --- */
+.pedido-scroll-area {
   flex: 1;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Items list --- */
+.pedido-items {
   padding: 10px 18px;
 }
 
@@ -337,6 +394,40 @@ function etiquetaTipo(tipo) {
 .pedido-vacio p {
   font-size: 13px;
   font-weight: 600;
+}
+
+/* --- Instrucciones --- */
+.pedido-instrucciones {
+  padding: 12px 18px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pedido-instrucciones label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #888;
+  text-transform: uppercase;
+}
+
+.pedido-instrucciones textarea {
+  width: 100%;
+  height: 60px;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+  resize: none;
+  outline: none;
+  background: #fdfdfd;
+  transition: border-color 0.2s;
+}
+
+.pedido-instrucciones textarea:focus {
+  border-color: #F2CB05;
+  background: #fff;
 }
 
 /* --- Totales --- */

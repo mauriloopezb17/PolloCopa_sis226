@@ -81,11 +81,13 @@
         :metodos-pago="metodosPagoDigitales"
         :allow-discount="false"
         :exact-amount="true"
+        :show-close="true"
         @incrementar="incrementar"
         @decrementar="decrementar"
         @eliminar="eliminar"
         @cancelar="cancelarPedido"
         @confirmar="confirmarPedido"
+        @close="showPanelMobile = false"
       />
     </div>
 
@@ -247,6 +249,7 @@ async function confirmarPedido(datosPago) {
       NIT: datosPago.NIT || null,
       razon_social: datosPago.razon_social || null,
       descuento_pct: datosPago.descuento_pct || 0,
+      instrucciones: datosPago.instrucciones || null,
       origen_web: true
     }
     const res = await fetch(`${API}/pedidos`, {

@@ -341,6 +341,7 @@ async function confirmarPedido(datosPago) {
       NIT:          datosPago.NIT          || null,
       razon_social: datosPago.razon_social || null,
       descuento_pct: datosPago.descuento_pct || 0,
+      instrucciones: datosPago.instrucciones || null,
     }
     const res  = await fetch(`${API}/pedidos`, {
       method:  'POST',

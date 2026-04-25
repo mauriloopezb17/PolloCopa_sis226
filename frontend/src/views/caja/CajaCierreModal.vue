@@ -77,7 +77,7 @@
             <!-- Monto físico -->
             <div class="seccion-montos">
               <!-- EFECTIVO -->
-              <div class="seccion">
+              <div class="seccion single-col">
                 <div class="label-with-theoretical">
                   <label class="campo-label">Efectivo físico en caja</label>
                   <span class="theoretical-hint">Sistema: Bs {{ fmt(resumen.total_efectivo_teorico) }}</span>
@@ -102,35 +102,6 @@
                   Dif. Efectivo: Bs {{ fmt(Math.abs(diffEfectivo)) }}
                   <span v-if="diffEfectivo > 0">&nbsp;(sobrante)</span>
                   <span v-else-if="diffEfectivo < 0">&nbsp;(faltante)</span>
-                </div>
-              </div>
-
-              <!-- TRANSFERENCIA -->
-              <div class="seccion">
-                <div class="label-with-theoretical">
-                  <label class="campo-label">Transferencias / Otros</label>
-                  <span class="theoretical-hint">Sistema: Bs {{ fmt(resumen.total_transferencia_teorico) }}</span>
-                </div>
-                <div class="input-wrap">
-                  <span class="prefix">Bs</span>
-                  <input
-                    v-model.number="montoTransferencia"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0.00"
-                    class="input-monto"
-                    :disabled="cerrando"
-                  />
-                </div>
-                <div
-                  v-if="montoTransferencia !== null && montoTransferencia !== ''"
-                  class="diferencia"
-                  :class="{ negativa: diffTransferencia < 0, cero: diffTransferencia === 0 }"
-                >
-                  Dif. Transf: Bs {{ fmt(Math.abs(diffTransferencia)) }}
-                  <span v-if="diffTransferencia > 0">&nbsp;(sobrante)</span>
-                  <span v-else-if="diffTransferencia < 0">&nbsp;(faltante)</span>
                 </div>
               </div>
             </div>
@@ -190,12 +161,10 @@ const cerrando           = ref(false)
 const errorMsg           = ref(null)
 const resumen            = ref(null)
 const montoEfectivo      = ref(null)
-const montoTransferencia = ref(null)
 
 watch(() => props.show, async (visible) => {
   if (!visible) return
   montoEfectivo.value      = null
-  montoTransferencia.value = null
   errorMsg.value           = null
   resumen.value            = null
   await cargarResumen()
@@ -216,7 +185,9 @@ async function cargarResumen() {
 }
 
 const montoTotalReportado = computed(() => {
-  return Number(montoEfectivo.value || 0) + Number(montoTransferencia.value || 0)
+  const efec = Number(montoEfectivo.value || 0)
+  const digital = Number(resumen.value?.total_transferencia_teorico || 0)
+  return efec + digital
 })
 
 const diffEfectivo = computed(() => {
@@ -224,20 +195,15 @@ const diffEfectivo = computed(() => {
   return Number(montoEfectivo.value) - resumen.value.total_efectivo_teorico
 })
 
-const diffTransferencia = computed(() => {
-  if (!resumen.value || montoTransferencia.value === null || montoTransferencia.value === '') return 0
-  return Number(montoTransferencia.value) - resumen.value.total_transferencia_teorico
-})
-
 const diferenciaTotal = computed(() => {
   if (!resumen.value) return 0
-  return montoTotalReportado.value - resumen.value.total_calculado
+  // La diferencia solo viene del efectivo, ya que digital se asume correcto
+  return diffEfectivo.value
 })
 
 const puedeConfirmar = computed(() =>
   resumen.value !== null &&
-  montoEfectivo.value !== null && montoEfectivo.value !== '' &&
-  montoTransferencia.value !== null && montoTransferencia.value !== ''
+  montoEfectivo.value !== null && montoEfectivo.value !== ''
 )
 
 async function confirmarCierre() {
@@ -250,7 +216,7 @@ async function confirmarCierre() {
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ 
         monto_cierre_efectivo:    Number(montoEfectivo.value),
-        monto_cierre_transaccion: Number(montoTransferencia.value)
+        monto_cierre_transaccion: Number(resumen.value.total_transferencia_teorico)
       }),
     })
     const data = await res.json()
@@ -458,10 +424,9 @@ function formatFecha(iso) {
 }
 
 .seccion-montos {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  display: block;
 }
+.single-col { width: 100%; }
 
 .label-with-theoretical {
   display: flex;
