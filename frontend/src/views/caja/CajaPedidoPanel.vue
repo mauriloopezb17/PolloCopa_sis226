@@ -46,16 +46,39 @@
           <span>Subtotal</span>
           <span>Bs {{ formatPrecio(subtotal) }}</span>
         </div>
+        
+        <div class="total-row discount-row">
+          <div class="discount-label">
+            <span>Descuento</span>
+            <div class="discount-input-wrap">
+              <input 
+                type="number" 
+                v-model.number="descuentoPct" 
+                min="0" 
+                max="100" 
+                step="5"
+                placeholder="0"
+                class="discount-input"
+              />
+              <span class="pct-sign">%</span>
+            </div>
+          </div>
+          <span class="discount-val" v-if="descuentoMonto > 0">
+            − Bs {{ formatPrecio(descuentoMonto) }}
+          </span>
+          <span v-else>Bs 0.00</span>
+        </div>
+
         <div class="total-row total-final">
-          <span>Total</span>
-          <span>Bs {{ formatPrecio(subtotal) }}</span>
+          <span>Total a pagar</span>
+          <span>Bs {{ formatPrecio(totalFinal) }}</span>
         </div>
       </div>
 
       <!-- Componente de pago -->
       <CajaPaymentSection 
         ref="paymentSectionRef"
-        :subtotal="subtotal" 
+        :subtotal="totalFinal" 
         :metodos-pago="metodosPago"
         @updatePago="handlePagoUpdate"
       />
@@ -110,6 +133,13 @@ const subtotal = computed(() =>
   props.items.reduce((sum, item) => sum + Number(item.subtotal), 0)
 )
 
+const descuentoPct = ref(null)
+const descuentoMonto = computed(() => {
+  const pct = Number(descuentoPct.value || 0)
+  return subtotal.value * (pct / 100)
+})
+const totalFinal = computed(() => subtotal.value - descuentoMonto.value)
+
 function handlePagoUpdate(data) {
   pagoData.value = data
 }
@@ -131,10 +161,16 @@ function emitConfirmar() {
     monto_pagado: pagoData.value.monto_pagado,
     NIT:          pagoData.value.NIT,
     razon_social: pagoData.value.razon_social,
+    descuento_pct: Number(descuentoPct.value || 0),
   })
 }
 
-defineExpose({ resetPago })
+function reset() {
+  descuentoPct.value = null
+  resetPago()
+}
+
+defineExpose({ reset })
 
 function formatPrecio(val) {
   return Number(val).toFixed(2)
@@ -316,6 +352,62 @@ function etiquetaTipo(tipo) {
   margin-top: 4px;
   padding-top: 6px;
   border-top: 2px solid #F2CB05;
+}
+
+/* Discount row */
+.discount-row {
+  align-items: center;
+  margin: 6px 0;
+}
+
+.discount-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.discount-input-wrap {
+  display: flex;
+  align-items: center;
+  background: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.discount-input {
+  width: 36px;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+  padding: 2px 0;
+  outline: none;
+  color: #D90B31;
+}
+
+/* Chrome, Safari, Edge, Opera */
+.discount-input::-webkit-outer-spin-button,
+.discount-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+.discount-input[type=number] {
+  -moz-appearance: textfield;
+}
+
+.pct-sign {
+  font-size: 10px;
+  font-weight: 800;
+  color: #888;
+}
+
+.discount-val {
+  color: #D90B31;
+  font-weight: 700;
 }
 
 /* --- Acciones --- */

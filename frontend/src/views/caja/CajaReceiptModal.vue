@@ -26,7 +26,15 @@
         </div>
 
         <div class="receipt-totals" v-if="ticket">
-          <div class="total-row">
+          <div class="total-row" v-if="ticket.descuento_pct > 0">
+            <span>Subtotal:</span>
+            <span>Bs {{ formatPrecio(ticket.subtotal) }}</span>
+          </div>
+          <div class="total-row" v-if="ticket.descuento_pct > 0">
+            <span>Descuento ({{ ticket.descuento_pct }}%):</span>
+            <span>- Bs {{ formatPrecio(ticket.subtotal - ticket.total) }}</span>
+          </div>
+          <div class="total-row total-final-row">
             <span>Total:</span>
             <span>Bs {{ formatPrecio(ticket.total) }}</span>
           </div>
@@ -198,6 +206,13 @@ function etiquetaTipo(tipo) {
   display: flex;
   justify-content: space-between;
   margin-bottom: 4px;
+}
+
+.total-final-row {
+  font-weight: bold;
+  border-top: 1px solid #333;
+  padding-top: 4px;
+  margin-top: 4px;
 }
 
 .total-cambio {

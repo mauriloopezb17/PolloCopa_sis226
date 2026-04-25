@@ -313,7 +313,13 @@ router.post('/cierre', async (req, res) => {
 //   8. Insertar el pago con el cambio calculado
 // ═══════════════════════════════════════════════════════════
 router.post('/pedidos', async (req, res) => {
-  const { items, pago, instrucciones, NIT, razon_social } = req.body
+  const { items, pago, instrucciones, NIT, razon_social, descuento_pct = 0 } = req.body
+  
+  // Validar descuento
+  const d_pct = Number(descuento_pct)
+  if (isNaN(d_pct) || d_pct < 0 || d_pct > 100) {
+    return res.status(400).json({ error: 'El porcentaje de descuento debe estar entre 0 y 100' })
+  }
 
   // Validar que hay al menos un ítem
   if (!items || !Array.isArray(items) || items.length === 0) {
@@ -367,7 +373,8 @@ router.post('/pedidos', async (req, res) => {
     const subtotal = items.reduce(
       (sum, item) => sum + item.cantidad * item.precio_unitario, 0
     )
-    const total = subtotal  // sin descuento por ahora
+    const descuento_monto = subtotal * (d_pct / 100)
+    const total = subtotal - descuento_monto
 
     // 4. Validar que el monto pagado cubre el total
     if (pago.monto_pagado < total) {
@@ -379,10 +386,10 @@ router.post('/pedidos', async (req, res) => {
 
     // 5. Insertar pedido
     const { rows: pedidoRows } = await client.query(`
-      INSERT INTO pedido (id_estado, numero_ticket, origen_web, subtotal, total, instrucciones, nit, razon_social)
-      VALUES ($1, $2, false, $3, $4, $5, $6, $7)
+      INSERT INTO pedido (id_estado, numero_ticket, origen_web, subtotal, descuento_pct, descuento_monto, total, instrucciones, nit, razon_social)
+      VALUES ($1, $2, false, $3, $4, $5, $6, $7, $8, $9)
       RETURNING id_pedido, numero_ticket, hora_pedido
-    `, [id_estado, numero_ticket, subtotal, total, instrucciones || null, NIT || null, razon_social || null])
+    `, [id_estado, numero_ticket, subtotal, d_pct, descuento_monto, total, instrucciones || null, NIT || null, razon_social || null])
 
     const pedido = pedidoRows[0]
 
@@ -426,6 +433,8 @@ router.post('/pedidos', async (req, res) => {
         id_pedido: pedido.id_pedido,
         numero_ticket: pedido.numero_ticket,
         hora_pedido: pedido.hora_pedido,
+        subtotal,
+        descuento_pct: d_pct,
         total,
         monto_pagado: pago.monto_pagado,
         monto_cambio: monto_cambio,

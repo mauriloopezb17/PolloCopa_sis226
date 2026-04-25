@@ -194,7 +194,7 @@ function onTurnoCerrado(turnoFinalizado) {
   montoAperturaSugerido.value = Number(turnoFinalizado.monto_cierre ?? 0)
   hayTurnoAnterior.value      = true
   pedidoItems.value           = []
-  panelRef.value?.resetPago()
+  panelRef.value?.reset()
 }
 
 // ── Datos del catálogo ─────────────────────────────────────
@@ -340,6 +340,7 @@ async function confirmarPedido(datosPago) {
       },
       NIT:          datosPago.NIT          || null,
       razon_social: datosPago.razon_social || null,
+      descuento_pct: datosPago.descuento_pct || 0,
     }
     const res  = await fetch(`${API}/pedidos`, {
       method:  'POST',
@@ -356,7 +357,7 @@ async function confirmarPedido(datosPago) {
     ticketConfirmado.value  = data.pedido
     pedidoItems.value      = []
     ticketActual.value     = '---'
-    panelRef.value?.resetPago()
+    panelRef.value?.reset()
   } catch (err) {
     console.error(err)
     alert('Error de conexión al crear el pedido.')
