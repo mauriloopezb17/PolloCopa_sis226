@@ -1,22 +1,16 @@
 <template>
   <div class="cocina-root">
-  <!-- ══════════════════════════════════════
-       LAYOUT PRINCIPAL: pedidos (izq) + ingredientes (der)
-  ══════════════════════════════════════════ -->
   <div class="cocina-layout">
   <div class="cocina-pedidos-col">
 
-    <!-- ══════════════════════════════════════
-         BARRA DE ESTADO — discreta, bajo el navbar global
-         Muestra: cola, completados, reloj, conexión
-    ══════════════════════════════════════════ -->
+    <!-- Barra de estado -->
     <div class="status-bar">
       <div class="status-left">
         <div class="stat-item">
-          <span class="stat-num" :class="{ 'stat-num--alert': pedidosOrdenados.length > 0 }">
-            {{ pedidosOrdenados.length }}
+          <span class="stat-num" :class="{ 'stat-num--alert': detallesOrdenados.length > 0 }">
+            {{ detallesOrdenados.length }}
           </span>
-          <span class="stat-lbl">en cola</span>
+          <span class="stat-lbl">{{ detallesOrdenados.length === 1 ? 'ítem' : 'ítems' }} en cola</span>
         </div>
         <div class="divider-v"></div>
         <div class="stat-item">
@@ -24,7 +18,6 @@
           <span class="stat-lbl">completados hoy</span>
         </div>
       </div>
-
       <div class="status-right">
         <div class="conexion-chip" :class="{ 'chip--vivo': sincronizando }">
           <span class="chip-dot"></span>
@@ -34,43 +27,34 @@
       </div>
     </div>
 
-    <!-- ══════════════════════════════════════
-         HU-23 · RESUMEN DE PRODUCTOS
-         Lista vertical con totales acumulados
-    ══════════════════════════════════════════ -->
+    <!-- HU-23: resumen de productos -->
     <section class="resumen-bar" v-if="resumenProductos.length > 0">
       <span class="resumen-titulo">Preparar ahora:</span>
       <ul class="resumen-lista">
-        <li
-          v-for="item in resumenProductos"
-          :key="item.nombre"
-          class="resumen-item"
-        >
+        <li v-for="item in resumenProductos" :key="item.nombre" class="resumen-item">
           <span class="resumen-count">{{ item.total }}</span>
           <span class="resumen-nombre">{{ item.nombre }}</span>
         </li>
       </ul>
     </section>
 
-    <!-- ══════════════════════════════════════
-         GRID DE PEDIDOS
-    ══════════════════════════════════════════ -->
-    <main class="pedidos-grid" v-if="pedidosOrdenados.length > 0">
+    <!-- Grid de pedidos -->
+    <main class="pedidos-grid" v-if="detallesOrdenados.length > 0">
       <article
-        v-for="(pedido, index) in pedidosOrdenados"
-        :key="pedido.id_pedido"
+        v-for="(item, index) in detallesOrdenados"
+        :key="item.id_detalle"
         class="pedido-card"
-        :class="estadoCard(pedido)"
+        :class="estadoCard(item)"
       >
         <div class="pos-badge" :class="`pos-${posicion(index)}`">
-          {{ posicion(index) === 'first' ? 'PRIMERO' : posicion(index) === 'last' ? 'ÚLTIMO' : '#' + (index + 1) }}
+          {{ item.numero_ticket }}
         </div>
 
         <div class="img-frame">
           <img
-            v-if="pedido.imagen_url"
-            :src="pedido.imagen_url"
-            :alt="pedido.nombre_producto"
+            v-if="item.imagen_url"
+            :src="item.imagen_url"
+            :alt="item.nombre_producto"
             class="combo-img"
             @error="onImgError($event)"
           />
@@ -83,42 +67,48 @@
             </svg>
             <span class="ph-txt">Sin imagen</span>
           </div>
-          <span v-if="tiempoMs(pedido) >= ALERTA_MS" class="urgente-dot"></span>
+          <span v-if="tiempoMs(item) >= ALERTA_MS" class="urgente-dot"></span>
         </div>
 
         <div class="pedido-body">
-          <p class="pedido-ticket">Ticket #{{ pedido.numero_ticket }}</p>
-          <p class="pedido-nombre">{{ pedido.nombre_producto }}</p>
-          <p class="pedido-tipo">{{ pedido.tipo_precio_label }}</p>
-          <p class="pedido-cantidad" v-if="pedido.cantidad > 1">x{{ pedido.cantidad }}</p>
-          <p v-if="pedido.instrucciones" class="pedido-ins">
-            {{ pedido.instrucciones }}
+          <p class="pedido-ticket">Ticket #{{ item.numero_ticket }}</p>
+          <p class="pedido-nombre">{{ item.nombre_producto }}</p>
+          <p class="pedido-tipo">{{ item.tipo_precio_label }}</p>
+          <p class="pedido-cantidad" v-if="item.cantidad > 1">x{{ item.cantidad }}</p>
+          <p v-if="item.instrucciones" class="pedido-ins">
+            {{ item.instrucciones }}
           </p>
         </div>
 
         <div class="tiempo-bloque">
           <div class="tiempo-nums">
-            <span class="t-elapsed">{{ fmtMs(tiempoMs(pedido)) }}</span>
+            <span class="t-elapsed">{{ fmtMs(tiempoMs(item)) }}</span>
             <span class="t-total">/ {{ fmtMs(LIMITE_MS) }}</span>
           </div>
           <div class="barra-bg">
             <div
               class="barra-fill"
-              :class="colorBarra(pedido)"
-              :style="{ width: pct(pedido) + '%' }"
+              :class="colorBarra(item)"
+              :style="{ width: pct(item) + '%' }"
             ></div>
           </div>
         </div>
 
-        <div class="pedido-precio">{{ pedido.subtotal }} Bs.</div>
+        <div class="pedido-precio">{{ Number(item.subtotal_detalle).toFixed(2) }} Bs.</div>
 
-        <button
-          class="btn-completar"
-          :disabled="completando === pedido.id_pedido"
-          @click="completarPedido(pedido)"
-        >
-          {{ completando === pedido.id_pedido ? 'Completando…' : 'Completar orden' }}
-        </button>
+        <!-- Botones: Ver receta + Completar -->
+        <div class="card-acciones">
+          <button class="btn-receta" @click="verReceta(item)">
+            Ver receta
+          </button>
+          <button
+            class="btn-completar"
+            :disabled="completando === item.id_detalle"
+            @click="completarDetalle(item)"
+          >
+            {{ completando === item.id_detalle ? '…' : 'Completar' }}
+          </button>
+        </div>
 
       </article>
     </main>
@@ -129,10 +119,7 @@
 
   </div><!-- /cocina-pedidos-col -->
 
-  <!-- ══════════════════════════════════════
-       PANEL INGREDIENTES (derecha)
-       Usa /api/cocinaIngredientes (cocinaIngredientes.js)
-  ══════════════════════════════════════════ -->
+  <!-- Panel ingredientes -->
   <aside class="ingredientes-panel">
     <div class="ing-header">
       <span class="ing-titulo">Ingredientes</span>
@@ -143,7 +130,6 @@
         {{ ingredientesAgotados === 0 ? 'Todo disponible' : `${ingredientesAgotados} falta${ingredientesAgotados > 1 ? 'n' : ''}` }}
       </span>
     </div>
-
     <div class="ing-lista">
       <div
         v-for="ing in ingredientes"
@@ -161,24 +147,64 @@
           {{ ing.out ? 'Hay' : 'No hay' }}
         </button>
       </div>
-      <div v-if="ingredientes.length === 0" class="ing-vacio">
-        Cargando…
-      </div>
+      <div v-if="ingredientes.length === 0" class="ing-vacio">Cargando…</div>
     </div>
-
-    <button class="ing-btn-refresh" @click="cargarIngredientes">
-      Actualizar lista
-    </button>
+    <button class="ing-btn-refresh" @click="cargarIngredientes">Actualizar lista</button>
   </aside>
 
   </div><!-- /cocina-layout -->
+
+  <transition name="modal-fade">
+    <div
+      v-if="recetaVisible"
+      class="modal-overlay"
+      @click.self="cerrarReceta"
+    >
+      <div class="modal-receta" role="dialog" aria-modal="true">
+
+        <!-- Cabecera del modal -->
+        <div class="modal-header">
+          <div class="modal-titulo-wrap">
+            <span class="modal-label">Receta</span>
+            <span class="modal-nombre">{{ recetaActual.nombre_producto }}</span>
+          </div>
+          <button class="modal-cerrar" @click="cerrarReceta" aria-label="Cerrar">✕</button>
+        </div>
+
+        <!-- Imagen de la receta  -->
+        <div class="modal-img-wrap">
+          <img
+            :src="rutaReceta(recetaActual)"
+            :alt="`Receta de ${recetaActual.nombre_producto}`"
+            class="modal-img"
+            @error="onRecetaImgError($event)"
+          />
+          <!-- Placeholder mientras no tengas la imagen -->
+          <div class="modal-img-placeholder" style="display:none">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+              <rect width="64" height="64" rx="12" fill="#FFEBEE"/>
+              <rect x="14" y="12" width="36" height="8" rx="4" fill="#E53935" opacity=".3"/>
+              <ellipse cx="32" cy="38" rx="15" ry="11" fill="#E53935" opacity=".15"/>
+              <rect x="10" y="50" width="44" height="5" rx="2.5" fill="#FFC107" opacity=".35"/>
+            </svg>
+            <p class="modal-ph-txt">
+              Imagen de receta no disponible.<br>
+              Guárdala en <code>/src/assets/recetas/{{ recetaActual.codigo?.toLowerCase() }}.png</code>
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </transition>
+
   </div><!-- /cocina-root -->
 </template>
 
 <script>
-const LIMITE_MS  = 10 * 60 * 1000   // límite: 10 minutos
-const ALERTA_MS  =  8 * 60 * 1000   // alerta al 80% (8 min)
-const CRITICO_MS = 10 * 60 * 1000   // HU-21: parpadeo rojo suave a los 10 min
+const LIMITE_MS  = 10 * 60 * 1000
+const ALERTA_MS  =  8 * 60 * 1000
+const CRITICO_MS = 10 * 60 * 1000
 const POLLING_MS = 5 * 1000
 const API_BASE   = 'http://localhost:3000/api/cocina'
 const API_ING    = 'http://localhost:3000/api/ingredients'
@@ -195,7 +221,7 @@ export default {
 
   data() {
     return {
-      pedidos: [],
+      detalles: [],
       pedidosListosHoy: 0,
       ahora: Date.now(),
       sincronizando: false,
@@ -204,20 +230,26 @@ export default {
       _poll: null,
       LIMITE_MS,
       ALERTA_MS,
-      // ── Ingredientes ──
+      // Ingredientes
       ingredientes: [],
       togglingIngId: null,
+      // Modal receta
+      recetaVisible: false,
+      recetaActual: {},
     }
   },
 
   computed: {
-    pedidosOrdenados() {
-      return [...this.pedidos]
-        .filter(p => p.estado === 'EN PROCESO')
-        .sort((a, b) => new Date(a.hora_pedido) - new Date(b.hora_pedido))
-        .map(p => ({
-          ...p,
-          tipo_precio_label: TIPO_LABELS[p.tipo_precio] || p.tipo_precio,
+    detallesOrdenados() {
+      return [...this.detalles]
+        .filter(d => d.estado === 'EN PROCESO' && !d.completado)
+        .sort((a, b) => {
+          const diff = new Date(a.hora_pedido) - new Date(b.hora_pedido)
+          return diff !== 0 ? diff : a.id_detalle - b.id_detalle
+        })
+        .map(d => ({
+          ...d,
+          tipo_precio_label: TIPO_LABELS[d.tipo_precio] || d.tipo_precio,
         }))
     },
     horaActual() {
@@ -225,13 +257,12 @@ export default {
         hour: '2-digit', minute: '2-digit', second: '2-digit',
       })
     },
-    // HU-23: totales acumulados por nombre de producto
     resumenProductos() {
       const mapa = {}
-      for (const p of this.pedidosOrdenados) {
-        const key = p.nombre_producto
+      for (const d of this.detallesOrdenados) {
+        const key = d.nombre_producto
         if (!mapa[key]) mapa[key] = 0
-        mapa[key] += (p.cantidad || 1)
+        mapa[key] += (d.cantidad || 1)
       }
       return Object.entries(mapa)
         .map(([nombre, total]) => ({ nombre, total }))
@@ -243,33 +274,33 @@ export default {
   },
 
   methods: {
-    tiempoMs(p) {
-      return Math.max(0, this.ahora - new Date(p.hora_pedido).getTime())
+    tiempoMs(d) {
+      return Math.max(0, this.ahora - new Date(d.hora_pedido).getTime())
     },
-    pct(p) {
-      return Math.min((this.tiempoMs(p) / LIMITE_MS) * 100, 100).toFixed(1)
+    pct(d) {
+      return Math.min((this.tiempoMs(d) / LIMITE_MS) * 100, 100).toFixed(1)
     },
     fmtMs(ms) {
       const t = Math.max(0, Math.floor(ms / 1000))
       return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0')
     },
-    estadoCard(p) {
-      const ms = this.tiempoMs(p)
-      if (ms >= CRITICO_MS) return 'card-critico parpadeando-suave'  // HU-21: >10 min
-      const v = parseFloat(this.pct(p))
+    estadoCard(d) {
+      const ms = this.tiempoMs(d)
+      if (ms >= CRITICO_MS) return 'card-critico parpadeando-suave'
+      const v = parseFloat(this.pct(d))
       if (v >= 100) return 'card-urgente parpadeando'
       if (v >= 80)  return 'card-warn'
       return 'card-ok'
     },
-    colorBarra(p) {
-      const v = parseFloat(this.pct(p))
+    colorBarra(d) {
+      const v = parseFloat(this.pct(d))
       if (v >= 100) return 'fill-red'
       if (v >= 80)  return 'fill-yellow'
       return 'fill-green'
     },
     posicion(i) {
       if (i === 0) return 'first'
-      if (i === this.pedidosOrdenados.length - 1) return 'last'
+      if (i === this.detallesOrdenados.length - 1) return 'last'
       return 'mid'
     },
     onImgError(e) {
@@ -277,12 +308,40 @@ export default {
       e.target.nextElementSibling && (e.target.nextElementSibling.style.display = 'flex')
     },
 
+    /* ── Modal receta ── */
+    verReceta(item) {
+      this.recetaActual = item
+      this.recetaVisible = true
+    },
+    cerrarReceta() {
+      this.recetaVisible = false
+      this.recetaActual  = {}
+    },
+    
+    rutaReceta(item) {
+      if (item.codigo) {
+        return `/src/assets/recetas/${item.codigo.toLowerCase()}.png`
+      }
+      // fallback: nombre del producto normalizado
+      const nombre = (item.nombre_producto || 'sin-receta')
+        .toLowerCase()
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9_-]/g, '')
+      return `/src/assets/recetas/${nombre}.png`
+    },
+    onRecetaImgError(e) {
+      e.target.style.display = 'none'
+      const ph = e.target.nextElementSibling
+      if (ph) ph.style.display = 'flex'
+    },
+
+    /* ── Pedidos ── */
     async cargarPedidos() {
       if (MODO_MOCK) { this._cargarMock(); this.sincronizando = true; return }
       try {
         const res = await fetch(`${API_BASE}/pedidos`)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        this.pedidos = await res.json()
+        this.detalles = await res.json()
         this.sincronizando = true
       } catch (err) {
         console.error('[Cocina] Error al cargar:', err)
@@ -290,42 +349,32 @@ export default {
       }
     },
 
-    async completarPedido(pedido) {
-      this.completando = pedido.id_pedido
+    async completarDetalle(item) {
+      this.completando = item.id_detalle
       if (MODO_MOCK) {
-        await new Promise(r => setTimeout(r, 600))
-        const p = this.pedidos.find(x => x.id_pedido === pedido.id_pedido)
-        if (p) { p.estado = 'LISTO'; this.pedidosListosHoy++ }
+        await new Promise(r => setTimeout(r, 500))
+        const d = this.detalles.find(x => x.id_detalle === item.id_detalle)
+        if (d) { d.completado = true; this.pedidosListosHoy++ }
         this.completando = null
         return
       }
       try {
-        const res = await fetch(`${API_BASE}/pedidos/${pedido.id_pedido}/completar`, {
+        const res = await fetch(`${API_BASE}/detalles/${item.id_detalle}/completar`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
         })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        await this.cargarPedidos()
         this.pedidosListosHoy++
+        await this.cargarPedidos()
       } catch (err) {
-        console.error('[Cocina] Error al completar:', err)
-        alert('No se pudo completar el pedido. Intenta de nuevo.')
+        console.error('[Cocina] Error al completar ítem:', err)
+        alert('No se pudo completar el ítem. Intenta de nuevo.')
       } finally {
         this.completando = null
       }
     },
 
-    _cargarMock() {
-      if (this.pedidos.length > 0) return
-      const b = Date.now()
-      this.pedidos = [
-        { id_pedido:1, numero_ticket:'T-0001', hora_pedido:new Date(b-270000).toISOString(), instrucciones:'', subtotal:30.00, nombre_producto:'POLLO ANTOJITO', tipo_precio:'COMBO',    cantidad:1, imagen_url:'', estado:'EN PROCESO' },
-        { id_pedido:2, numero_ticket:'T-0002', hora_pedido:new Date(b-180000).toISOString(), instrucciones:'Sin ají', subtotal:25.00, nombre_producto:'POLLO ANTOJITO', tipo_precio:'CON_PAPA', cantidad:2, imagen_url:'', estado:'EN PROCESO' },
-        { id_pedido:3, numero_ticket:'T-0003', hora_pedido:new Date(b-60000).toISOString(),  instrucciones:'', subtotal:18.00, nombre_producto:'PECHUGA DORADA',  tipo_precio:'SOLO',     cantidad:1, imagen_url:'', estado:'EN PROCESO' },
-      ]
-    },
-
-    // ── Ingredientes (cocinaIngredientes.js) ──
+    /* ── Ingredientes ── */
     async cargarIngredientes() {
       try {
         const res = await fetch(API_ING)
@@ -335,19 +384,32 @@ export default {
         console.error('[Cocina] Error al cargar ingredientes:', err)
       }
     },
-
     async toggleIngrediente(id) {
       this.togglingIngId = id
       try {
         const res = await fetch(`${API_ING}/${id}/toggle`, { method: 'PATCH' })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        // Recarga completa para garantizar que la lista refleje el estado real del servidor
         await this.cargarIngredientes()
       } catch (err) {
         console.error('[Cocina] Error al actualizar ingrediente:', err)
       } finally {
         this.togglingIngId = null
       }
+    },
+
+    _cargarMock() {
+      if (this.detalles.length > 0) return
+      const b = Date.now()
+      this.detalles = [
+        { id_pedido:1, id_detalle:1, codigo:'COMB-ANT', numero_ticket:'T-0001', hora_pedido:new Date(b-270000).toISOString(), instrucciones:'Sin cebolla', subtotal:'30.00', subtotal_detalle:'30.00', nombre_producto:'Combo Antojito', tipo_precio:'COMBO',    cantidad:1, imagen_url:'', estado:'EN PROCESO', completado:false },
+        { id_pedido:1, id_detalle:2, codigo:'ACOM-ARR-M', numero_ticket:'T-0001', hora_pedido:new Date(b-270000).toISOString(), instrucciones:'Sin cebolla', subtotal:'30.00', subtotal_detalle:'10.50', nombre_producto:'Arroz Mediano',  tipo_precio:'SOLO',     cantidad:1, imagen_url:'', estado:'EN PROCESO', completado:false },
+        { id_pedido:2, id_detalle:3, codigo:'COMB-FIE', numero_ticket:'T-0002', hora_pedido:new Date(b-60000).toISOString(),  instrucciones:'',            subtotal:'18.00', subtotal_detalle:'18.00', nombre_producto:'Combo Fiesta',   tipo_precio:'COMBO',    cantidad:1, imagen_url:'', estado:'EN PROCESO', completado:false },
+      ]
+    },
+
+    /* ── Escape para cerrar modal ── */
+    onKeydown(e) {
+      if (e.key === 'Escape' && this.recetaVisible) this.cerrarReceta()
     },
   },
 
@@ -356,11 +418,13 @@ export default {
     this.cargarIngredientes()
     this._poll = setInterval(() => this.cargarPedidos(), POLLING_MS)
     this._tick = setInterval(() => { this.ahora = Date.now() }, 1000)
+    window.addEventListener('keydown', this.onKeydown)
   },
 
   beforeUnmount() {
     clearInterval(this._poll)
     clearInterval(this._tick)
+    window.removeEventListener('keydown', this.onKeydown)
   },
 }
 </script>
@@ -378,23 +442,18 @@ export default {
   --txt2:     #757575;
 
   background: var(--bg);
-  min-height: calc(100vh - 68px); /* descuenta el navbar global */
+  min-height: calc(100vh - 68px);
   box-sizing: border-box;
   font-family: 'Segoe UI', system-ui, sans-serif;
   color: var(--txt);
 }
 
-/* ── Barra de estado (reemplaza al header propio) ── */
+/* ── Barra de estado ── */
 .status-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: #fff;
-  border-bottom: 1px solid var(--border);
-  padding: 0 1.5rem;
-  height: 44px;
+  display: flex; align-items: center; justify-content: space-between;
+  background: #fff; border-bottom: 1px solid var(--border);
+  padding: 0 1.5rem; height: 44px;
 }
-
 .status-left  { display: flex; align-items: center; gap: .85rem; }
 .stat-item    { display: flex; align-items: baseline; gap: 5px; }
 .stat-num     { font-size: .95rem; font-weight: 700; color: var(--txt); }
@@ -402,66 +461,67 @@ export default {
 .stat-num--green { color: var(--verde); }
 .stat-lbl     { font-size: .68rem; color: var(--txt2); }
 .divider-v    { width: 1px; height: 18px; background: var(--border); }
-
 .status-right { display: flex; align-items: center; gap: .75rem; }
-
 .conexion-chip {
   display: flex; align-items: center; gap: 5px;
-  font-size: .68rem; font-weight: 600;
-  color: var(--txt2);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 3px 10px;
+  font-size: .68rem; font-weight: 600; color: var(--txt2);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 10px;
 }
-.chip-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--border);
-  flex-shrink: 0;
-}
-.chip--vivo              { color: var(--verde); border-color: #C8E6C9; background: #F1F8E9; }
-.chip--vivo .chip-dot    { background: var(--verde); }
-
+.chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+.chip--vivo           { color: var(--verde); border-color: #C8E6C9; background: #F1F8E9; }
+.chip--vivo .chip-dot { background: var(--verde); }
 .reloj-chip {
-  font-size: .78rem; font-weight: 700;
-  color: var(--txt);
+  font-size: .78rem; font-weight: 700; color: var(--txt);
   font-variant-numeric: tabular-nums;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 3px 12px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 12px;
 }
+
+/* ── HU-23: resumen ── */
+.resumen-bar {
+  background: #fff; border-bottom: 1px solid var(--border);
+  padding: .6rem 1.5rem; display: flex; align-items: flex-start; gap: .85rem;
+}
+.resumen-titulo { font-size: .7rem; font-weight: 700; color: var(--txt2); letter-spacing: .4px; text-transform: uppercase; white-space: nowrap; padding-top: 2px; }
+.resumen-lista  { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
+.resumen-item   { display: flex; align-items: center; gap: .5rem; }
+.resumen-count  { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; border-radius: 6px; background: var(--rojo); color: #fff; font-size: .72rem; font-weight: 700; padding: 0 5px; }
+.resumen-nombre { font-size: .78rem; font-weight: 600; color: var(--txt); }
+
+/* ── Layout ── */
+.cocina-layout { display: flex; align-items: flex-start; min-height: calc(100vh - 68px - 44px); }
+.cocina-pedidos-col { flex: 1 1 0; min-width: 0; overflow-y: auto; }
 
 /* ── Grid ── */
 .pedidos-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(205px, 1fr));
-  gap: 1rem;
-  padding: 1.25rem;
+  gap: 1rem; padding: 1.25rem;
 }
 
 /* ── Tarjeta ── */
 .pedido-card {
-  background: #fff;
-  border-radius: 14px;
-  border: 1.5px solid var(--border);
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: .55rem;
-  position: relative;
-  transition: border-color .25s;
+  background: #fff; border-radius: 14px;
+  border: 1.5px solid var(--border); padding: 1rem;
+  display: flex; flex-direction: column; gap: .55rem;
+  position: relative; transition: border-color .25s;
 }
 .card-ok      { border-color: var(--border); }
 .card-warn    { border-color: var(--amarillo); }
 .card-urgente { border-color: var(--rojo); }
 @keyframes parpadear { 0%,100%{opacity:1} 50%{opacity:.5} }
 .parpadeando  { animation: parpadear 1s ease-in-out infinite; }
+@keyframes parpadear-suave {
+  0%,100% { background-color: #f1a4a4; border-color: #EF9A9A; }
+  50%     { background-color: #FFEBEE; border-color: var(--rojo); }
+}
+.card-critico      { border-color: #f1a4a4; }
+.parpadeando-suave { animation: parpadear-suave 1.6s ease-in-out infinite; }
 
 .pos-badge {
-  position: absolute;
-  top: -11px; left: 50%; transform: translateX(-50%);
-  font-size: .58rem; font-weight: 700; letter-spacing: .7px;
+  position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
+  font-size: .58rem; font-weight: 700; letter-spacing: .5px;
   border-radius: 999px; padding: 2px 10px; white-space: nowrap;
 }
 .pos-first { background: var(--rojo);   color: #fff; }
@@ -469,17 +529,12 @@ export default {
 .pos-last  { background: var(--txt);    color: #fff; }
 
 .img-frame {
-  border-radius: 10px; overflow: hidden;
-  background: var(--bg); height: 130px;
+  border-radius: 10px; overflow: hidden; background: var(--bg); height: 130px;
   display: flex; align-items: center; justify-content: center;
   position: relative; border: 1px solid var(--border);
 }
 .combo-img { width: 100%; height: 100%; object-fit: cover; }
-.img-placeholder {
-  width: 100%; height: 100%;
-  display: flex; align-items: center; justify-content: center;
-  flex-direction: column; gap: 4px;
-}
+.img-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px; }
 .ph-txt      { font-size: .6rem; color: var(--txt2); }
 .urgente-dot { position: absolute; top: 8px; right: 8px; width: 10px; height: 10px; border-radius: 50%; background: var(--rojo); }
 
@@ -488,11 +543,7 @@ export default {
 .pedido-nombre   { margin: 2px 0 1px; font-size: .88rem; font-weight: 700; color: var(--txt); }
 .pedido-tipo     { margin: 0; font-size: .72rem; color: var(--txt2); }
 .pedido-cantidad { margin: 2px 0 0; font-size: .78rem; font-weight: 700; color: var(--rojo); }
-.pedido-ins {
-  margin: 4px 0 0; font-size: .7rem; font-weight: 700;
-  color: var(--rojo); background: var(--rojo-s);
-  border-radius: 6px; padding: 3px 8px;
-}
+.pedido-ins { margin: 4px 0 0; font-size: .7rem; font-weight: 700; color: var(--rojo); background: var(--rojo-s); border-radius: 6px; padding: 3px 8px; }
 
 .tiempo-bloque { margin-top: auto; }
 .tiempo-nums   { display: flex; justify-content: space-between; font-size: .63rem; margin-bottom: 3px; font-variant-numeric: tabular-nums; }
@@ -509,216 +560,167 @@ export default {
   border-top: 1px solid var(--border); padding-top: .45rem;
 }
 
+/* ── Botones de la tarjeta ── */
+.card-acciones {
+  display: flex;
+  gap: .4rem;
+}
+.btn-receta {
+  flex: 1;
+  background: #fff;
+  color: var(--rojo);
+  border: 1.5px solid var(--rojo);
+  border-radius: 8px;
+  padding: .45rem .3rem;
+  font-size: .72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.btn-receta:hover { background: var(--rojo-s); }
+
 .btn-completar {
-  width: 100%;
+  flex: 1;
   background: var(--rojo);
   color: #fff;
   border: none;
   border-radius: 8px;
-  padding: .5rem;
-  font-size: .78rem;
+  padding: .45rem .3rem;
+  font-size: .72rem;
   font-weight: 700;
   cursor: pointer;
-  letter-spacing: .2px;
   transition: background .15s, transform .1s, opacity .2s;
+  white-space: nowrap;
 }
 .btn-completar:hover:not(:disabled)  { background: var(--rojo-dk); }
 .btn-completar:active:not(:disabled) { transform: scale(.97); }
 .btn-completar:disabled              { opacity: .6; cursor: not-allowed; }
 
-/* ── HU-21: parpadeo rojo suave tras 10 minutos ── */
-@keyframes parpadear-suave {
-  0%,100% { background-color: #f1a4a4; border-color: #EF9A9A; }
-  50%     { background-color: #FFEBEE; border-color: var(--rojo); }
-}
-.card-critico       { border-color: #f1a4a4; }
-.parpadeando-suave  { animation: parpadear-suave 1.6s ease-in-out infinite; }
-
-/* ── HU-23: barra de resumen de productos ── */
-.resumen-bar {
-  background: #fff;
-  border-bottom: 1px solid var(--border);
-  padding: .6rem 1.5rem;
-  display: flex;
-  align-items: flex-start;
-  gap: .85rem;
-}
-.resumen-titulo {
-  font-size: .7rem;
-  font-weight: 700;
-  color: var(--txt2);
-  letter-spacing: .4px;
-  text-transform: uppercase;
-  white-space: nowrap;
-  padding-top: 2px;
-}
-.resumen-lista {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: .3rem;
-}
-.resumen-item {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-}
-.resumen-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  background: var(--rojo);
-  color: #fff;
-  font-size: .72rem;
-  font-weight: 700;
-  padding: 0 5px;
-}
-.resumen-nombre {
-  font-size: .78rem;
-  font-weight: 600;
-  color: var(--txt);
-}
-
-/* ── Layout principal ── */
-.cocina-layout {
-  display: flex;
-  align-items: flex-start;
-  min-height: calc(100vh - 68px - 44px); /* descuenta navbar + status-bar */
-}
-.cocina-pedidos-col {
-  flex: 1 1 0;
-  min-width: 0;
-  overflow-y: auto;
-}
-
 /* ── Panel ingredientes ── */
-.ingredientes-panel {
-  flex: 0 0 220px;
-  width: 220px;
-  background: #fff;
-  border-left: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  align-self: stretch;
-}
-
-.ing-header {
-  background: var(--rojo);
-  padding: .55rem .75rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: .5rem;
-  flex-shrink: 0;
-}
-.ing-titulo {
-  color: #fff;
-  font-size: .75rem;
-  font-weight: 700;
-  letter-spacing: .5px;
-  text-transform: uppercase;
-}
-.ing-estado-chip {
-  font-size: .62rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1.5px solid rgba(255,255,255,.6);
-  white-space: nowrap;
-}
+.ingredientes-panel { flex: 0 0 220px; width: 220px; background: #fff; border-left: 1px solid var(--border); display: flex; flex-direction: column; align-self: stretch; }
+.ing-header { background: var(--rojo); padding: .55rem .75rem; display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-shrink: 0; }
+.ing-titulo { color: #fff; font-size: .75rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
+.ing-estado-chip { font-size: .62rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1.5px solid rgba(255,255,255,.6); white-space: nowrap; }
 .chip-ok    { color: #fff; }
 .chip-falta { color: #FFCA07; border-color: #FFCA07; }
+.ing-lista { flex: 1 1 0; overflow-y: auto; max-height: calc(100vh - 68px - 44px - 42px - 48px); padding: .5rem .6rem; display: flex; flex-direction: column; gap: .4rem; }
+.ing-item { display: flex; align-items: center; justify-content: space-between; background: #FFCA07; border: 1.5px solid #D90404; border-radius: 8px; padding: 6px 8px; transition: opacity .2s; }
+.ing-item--out { opacity: .72; background: #ecc434; }
+.ing-nombre { font-size: .72rem; font-weight: 700; color: #1A1A1A; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: .4rem; }
+.ing-btn { font-size: .65rem; font-weight: 700; padding: 4px 9px; border-radius: 6px; border: 2px solid; cursor: pointer; transition: background .15s, transform .1s; white-space: nowrap; flex-shrink: 0; }
+.ing-btn:disabled { opacity: .5; cursor: not-allowed; }
+.ing-btn--disponible { background: #EB1A20; color: #fff; border-color: #8a0825; }
+.ing-btn--disponible:hover:not(:disabled) { background: #a00025; transform: scale(.97); }
+.ing-btn--restore { background: #2d5a1a; color: #a8f07a; border-color: #8a0825; }
+.ing-btn--restore:hover:not(:disabled) { background: #1a3a0a; transform: scale(.97); }
+.ing-btn-refresh { flex-shrink: 0; margin: .5rem .6rem .6rem; background: var(--rojo); color: #fff; border: none; border-radius: 7px; padding: .42rem; font-size: .68rem; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; cursor: pointer; transition: background .15s, transform .1s; }
+.ing-btn-refresh:hover { background: var(--rojo-dk); transform: scale(.98); }
+.ing-vacio { font-size: .72rem; color: var(--txt2); text-align: center; padding: 1.5rem 0; }
 
-.ing-lista {
-  flex: 1 1 0;
-  overflow-y: auto;
-  max-height: calc(100vh - 68px - 44px - 42px - 48px); /* viewport - navbar - statusbar - ing-header - refresh-btn */
-  padding: .5rem .6rem;
+.vacio { text-align: center; padding: 5rem 1rem; color: var(--txt2); font-size: .9rem; }
+
+/* ══════════════════════════════════════════════
+   MODAL VER RECETA
+══════════════════════════════════════════════ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .65);
   display: flex;
-  flex-direction: column;
-  gap: .4rem;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
 }
 
-.ing-item {
+.modal-receta {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,.3);
+}
+
+.modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #FFCA07;
-  border: 1.5px solid #D90404;
-  border-radius: 8px;
-  padding: 6px 8px;
-  transition: opacity .2s;
-}
-.ing-item--out {
-  opacity: .72;
-  background: #ecc434;
-}
-
-.ing-nombre {
-  font-size: .72rem;
-  font-weight: 700;
-  color: #1A1A1A;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin-right: .4rem;
-}
-
-.ing-btn {
-  font-size: .65rem;
-  font-weight: 700;
-  padding: 4px 9px;
-  border-radius: 6px;
-  border: 2px solid;
-  cursor: pointer;
-  transition: background .15s, transform .1s;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.ing-btn:disabled { opacity: .5; cursor: not-allowed; }
-.ing-btn--disponible {
-  background: #EB1A20;
-  color: #fff;
-  border-color: #8a0825;
-}
-.ing-btn--disponible:hover:not(:disabled) { background: #a00025; transform: scale(.97); }
-.ing-btn--restore {
-  background: #2d5a1a;
-  color: #a8f07a;
-  border-color: #8a0825;
-}
-.ing-btn--restore:hover:not(:disabled) { background: #1a3a0a; transform: scale(.97); }
-
-.ing-btn-refresh {
-  flex-shrink: 0;
-  margin: .5rem .6rem .6rem;
   background: var(--rojo);
-  color: #fff;
+  padding: .75rem 1rem;
+  flex-shrink: 0;
+}
+.modal-titulo-wrap { display: flex; flex-direction: column; }
+.modal-label  { font-size: .62rem; font-weight: 700; color: rgba(255,255,255,.75); text-transform: uppercase; letter-spacing: .8px; }
+.modal-nombre { font-size: 1rem; font-weight: 700; color: #fff; line-height: 1.2; }
+
+.modal-cerrar {
+  background: rgba(255,255,255,.2);
   border: none;
-  border-radius: 7px;
-  padding: .42rem;
-  font-size: .68rem;
-  font-weight: 700;
-  letter-spacing: .3px;
-  text-transform: uppercase;
+  color: #fff;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  font-size: .9rem;
   cursor: pointer;
-  transition: background .15s, transform .1s;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s;
+  flex-shrink: 0;
 }
-.ing-btn-refresh:hover { background: var(--rojo-dk); transform: scale(.98); }
+.modal-cerrar:hover { background: rgba(255,255,255,.35); }
 
-.ing-vacio {
-  font-size: .72rem;
-  color: var(--txt2);
+.modal-img-wrap {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: var(--bg);
+}
+
+.modal-img {
+  width: 100%;
+  height: auto;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
+.modal-img-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .75rem;
   text-align: center;
-  padding: 1.5rem 0;
+}
+.modal-ph-txt {
+  font-size: .78rem;
+  color: var(--txt2);
+  line-height: 1.6;
+}
+.modal-ph-txt code {
+  background: var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: .72rem;
+  color: var(--rojo);
 }
 
-.vacio { text-align: center; padding: 5rem 1rem; color: var(--txt2); font-size: .9rem; }
+/* Animación de entrada/salida del modal */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity .2s ease;
+}
+.modal-fade-enter-active .modal-receta,
+.modal-fade-leave-active .modal-receta {
+  transition: transform .2s ease;
+}
+.modal-fade-enter-from { opacity: 0; }
+.modal-fade-enter-from .modal-receta { transform: scale(.95); }
+.modal-fade-leave-to { opacity: 0; }
+.modal-fade-leave-to .modal-receta { transform: scale(.95); }
 </style>
