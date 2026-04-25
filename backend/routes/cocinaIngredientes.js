@@ -43,12 +43,9 @@ const updateQuery = `
     RETURNING id_insumo AS id, nombre AS name, stock_actual, agotado AS out
   ),
   upd_producto AS (
-    -- PASO 2: Actualizamos los productos
     UPDATE producto 
-    SET disponible = NOT $1  -- Como el tomate se agotó (true), el producto pasa a disponible = false
+    SET disponible = NOT $1 
     WHERE id_producto IN (
-        -- PASO 3: La magia ocurre aquí. 
-        -- Buscamos en la tabla receta todos los IDs de productos que necesitan el ingrediente 1 (Tomate)
         SELECT id_producto 
         FROM receta 
         WHERE id_ingrediente = $2

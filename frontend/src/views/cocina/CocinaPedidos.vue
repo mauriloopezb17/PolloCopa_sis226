@@ -1,5 +1,10 @@
 <template>
   <div class="cocina-root">
+  <!-- ══════════════════════════════════════
+       LAYOUT PRINCIPAL: pedidos (izq) + ingredientes (der)
+  ══════════════════════════════════════════ -->
+  <div class="cocina-layout">
+  <div class="cocina-pedidos-col">
 
     <!-- ══════════════════════════════════════
          BARRA DE ESTADO — discreta, bajo el navbar global
@@ -28,6 +33,24 @@
         <div class="reloj-chip">{{ horaActual }}</div>
       </div>
     </div>
+
+    <!-- ══════════════════════════════════════
+         HU-23 · RESUMEN DE PRODUCTOS
+         Lista vertical con totales acumulados
+    ══════════════════════════════════════════ -->
+    <section class="resumen-bar" v-if="resumenProductos.length > 0">
+      <span class="resumen-titulo">Preparar ahora:</span>
+      <ul class="resumen-lista">
+        <li
+          v-for="item in resumenProductos"
+          :key="item.nombre"
+          class="resumen-item"
+        >
+          <span class="resumen-count">{{ item.total }}</span>
+          <span class="resumen-nombre">{{ item.nombre }}</span>
+        </li>
+      </ul>
+    </section>
 
     <!-- ══════════════════════════════════════
          GRID DE PEDIDOS
@@ -104,14 +127,61 @@
       <p>Sin pedidos en cola</p>
     </div>
 
-  </div>
+  </div><!-- /cocina-pedidos-col -->
+
+  <!-- ══════════════════════════════════════
+       PANEL INGREDIENTES (derecha)
+       Usa /api/cocinaIngredientes (cocinaIngredientes.js)
+  ══════════════════════════════════════════ -->
+  <aside class="ingredientes-panel">
+    <div class="ing-header">
+      <span class="ing-titulo">Ingredientes</span>
+      <span
+        class="ing-estado-chip"
+        :class="ingredientesAgotados === 0 ? 'chip-ok' : 'chip-falta'"
+      >
+        {{ ingredientesAgotados === 0 ? 'Todo disponible' : `${ingredientesAgotados} falta${ingredientesAgotados > 1 ? 'n' : ''}` }}
+      </span>
+    </div>
+
+    <div class="ing-lista">
+      <div
+        v-for="ing in ingredientes"
+        :key="ing.id"
+        class="ing-item"
+        :class="{ 'ing-item--out': ing.out }"
+      >
+        <span class="ing-nombre">{{ ing.name }}</span>
+        <button
+          class="ing-btn"
+          :class="ing.out ? 'ing-btn--restore' : 'ing-btn--disponible'"
+          :disabled="togglingIngId === ing.id"
+          @click="toggleIngrediente(ing.id)"
+        >
+          {{ ing.out ? 'Hay' : 'No hay' }}
+        </button>
+      </div>
+      <div v-if="ingredientes.length === 0" class="ing-vacio">
+        Cargando…
+      </div>
+    </div>
+
+    <button class="ing-btn-refresh" @click="cargarIngredientes">
+      Actualizar lista
+    </button>
+  </aside>
+
+  </div><!-- /cocina-layout -->
+  </div><!-- /cocina-root -->
 </template>
 
 <script>
-const LIMITE_MS  = 5 * 60 * 1000
-const ALERTA_MS  = 4 * 60 * 1000
+const LIMITE_MS  = 10 * 60 * 1000   // límite: 10 minutos
+const ALERTA_MS  =  8 * 60 * 1000   // alerta al 80% (8 min)
+const CRITICO_MS = 10 * 60 * 1000   // HU-21: parpadeo rojo suave a los 10 min
 const POLLING_MS = 5 * 1000
 const API_BASE   = 'http://localhost:3000/api/cocina'
+const API_ING    = 'http://localhost:3000/api/ingredients'
 const MODO_MOCK  = false
 
 const TIPO_LABELS = {
@@ -134,6 +204,9 @@ export default {
       _poll: null,
       LIMITE_MS,
       ALERTA_MS,
+      // ── Ingredientes ──
+      ingredientes: [],
+      togglingIngId: null,
     }
   },
 
@@ -152,6 +225,21 @@ export default {
         hour: '2-digit', minute: '2-digit', second: '2-digit',
       })
     },
+    // HU-23: totales acumulados por nombre de producto
+    resumenProductos() {
+      const mapa = {}
+      for (const p of this.pedidosOrdenados) {
+        const key = p.nombre_producto
+        if (!mapa[key]) mapa[key] = 0
+        mapa[key] += (p.cantidad || 1)
+      }
+      return Object.entries(mapa)
+        .map(([nombre, total]) => ({ nombre, total }))
+        .sort((a, b) => b.total - a.total)
+    },
+    ingredientesAgotados() {
+      return this.ingredientes.filter(i => i.out).length
+    },
   },
 
   methods: {
@@ -166,6 +254,8 @@ export default {
       return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0')
     },
     estadoCard(p) {
+      const ms = this.tiempoMs(p)
+      if (ms >= CRITICO_MS) return 'card-critico parpadeando-suave'  // HU-21: >10 min
       const v = parseFloat(this.pct(p))
       if (v >= 100) return 'card-urgente parpadeando'
       if (v >= 80)  return 'card-warn'
@@ -234,10 +324,36 @@ export default {
         { id_pedido:3, numero_ticket:'T-0003', hora_pedido:new Date(b-60000).toISOString(),  instrucciones:'', subtotal:18.00, nombre_producto:'PECHUGA DORADA',  tipo_precio:'SOLO',     cantidad:1, imagen_url:'', estado:'EN PROCESO' },
       ]
     },
+
+    // ── Ingredientes (cocinaIngredientes.js) ──
+    async cargarIngredientes() {
+      try {
+        const res = await fetch(API_ING)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        this.ingredientes = await res.json()
+      } catch (err) {
+        console.error('[Cocina] Error al cargar ingredientes:', err)
+      }
+    },
+
+    async toggleIngrediente(id) {
+      this.togglingIngId = id
+      try {
+        const res = await fetch(`${API_ING}/${id}/toggle`, { method: 'PATCH' })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        // Recarga completa para garantizar que la lista refleje el estado real del servidor
+        await this.cargarIngredientes()
+      } catch (err) {
+        console.error('[Cocina] Error al actualizar ingrediente:', err)
+      } finally {
+        this.togglingIngId = null
+      }
+    },
   },
 
   mounted() {
     this.cargarPedidos()
+    this.cargarIngredientes()
     this._poll = setInterval(() => this.cargarPedidos(), POLLING_MS)
     this._tick = setInterval(() => { this.ahora = Date.now() }, 1000)
   },
@@ -409,6 +525,200 @@ export default {
 .btn-completar:hover:not(:disabled)  { background: var(--rojo-dk); }
 .btn-completar:active:not(:disabled) { transform: scale(.97); }
 .btn-completar:disabled              { opacity: .6; cursor: not-allowed; }
+
+/* ── HU-21: parpadeo rojo suave tras 10 minutos ── */
+@keyframes parpadear-suave {
+  0%,100% { background-color: #f1a4a4; border-color: #EF9A9A; }
+  50%     { background-color: #FFEBEE; border-color: var(--rojo); }
+}
+.card-critico       { border-color: #f1a4a4; }
+.parpadeando-suave  { animation: parpadear-suave 1.6s ease-in-out infinite; }
+
+/* ── HU-23: barra de resumen de productos ── */
+.resumen-bar {
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  padding: .6rem 1.5rem;
+  display: flex;
+  align-items: flex-start;
+  gap: .85rem;
+}
+.resumen-titulo {
+  font-size: .7rem;
+  font-weight: 700;
+  color: var(--txt2);
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding-top: 2px;
+}
+.resumen-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+}
+.resumen-item {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.resumen-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--rojo);
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 700;
+  padding: 0 5px;
+}
+.resumen-nombre {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--txt);
+}
+
+/* ── Layout principal ── */
+.cocina-layout {
+  display: flex;
+  align-items: flex-start;
+  min-height: calc(100vh - 68px - 44px); /* descuenta navbar + status-bar */
+}
+.cocina-pedidos-col {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+/* ── Panel ingredientes ── */
+.ingredientes-panel {
+  flex: 0 0 220px;
+  width: 220px;
+  background: #fff;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+}
+
+.ing-header {
+  background: var(--rojo);
+  padding: .55rem .75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  flex-shrink: 0;
+}
+.ing-titulo {
+  color: #fff;
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+}
+.ing-estado-chip {
+  font-size: .62rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(255,255,255,.6);
+  white-space: nowrap;
+}
+.chip-ok    { color: #fff; }
+.chip-falta { color: #FFCA07; border-color: #FFCA07; }
+
+.ing-lista {
+  flex: 1 1 0;
+  overflow-y: auto;
+  max-height: calc(100vh - 68px - 44px - 42px - 48px); /* viewport - navbar - statusbar - ing-header - refresh-btn */
+  padding: .5rem .6rem;
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+
+.ing-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #FFCA07;
+  border: 1.5px solid #D90404;
+  border-radius: 8px;
+  padding: 6px 8px;
+  transition: opacity .2s;
+}
+.ing-item--out {
+  opacity: .72;
+  background: #ecc434;
+}
+
+.ing-nombre {
+  font-size: .72rem;
+  font-weight: 700;
+  color: #1A1A1A;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: .4rem;
+}
+
+.ing-btn {
+  font-size: .65rem;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 6px;
+  border: 2px solid;
+  cursor: pointer;
+  transition: background .15s, transform .1s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ing-btn:disabled { opacity: .5; cursor: not-allowed; }
+.ing-btn--disponible {
+  background: #EB1A20;
+  color: #fff;
+  border-color: #8a0825;
+}
+.ing-btn--disponible:hover:not(:disabled) { background: #a00025; transform: scale(.97); }
+.ing-btn--restore {
+  background: #2d5a1a;
+  color: #a8f07a;
+  border-color: #8a0825;
+}
+.ing-btn--restore:hover:not(:disabled) { background: #1a3a0a; transform: scale(.97); }
+
+.ing-btn-refresh {
+  flex-shrink: 0;
+  margin: .5rem .6rem .6rem;
+  background: var(--rojo);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  padding: .42rem;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background .15s, transform .1s;
+}
+.ing-btn-refresh:hover { background: var(--rojo-dk); transform: scale(.98); }
+
+.ing-vacio {
+  font-size: .72rem;
+  color: var(--txt2);
+  text-align: center;
+  padding: 1.5rem 0;
+}
 
 .vacio { text-align: center; padding: 5rem 1rem; color: var(--txt2); font-size: .9rem; }
 </style>
