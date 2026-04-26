@@ -6,15 +6,12 @@
   <div class="cocina-layout">
   <div class="cocina-pedidos-col">
 
-    <!-- ══════════════════════════════════════
-         BARRA DE ESTADO — discreta, bajo el navbar global
-         Muestra: cola, completados, reloj, conexión
-    ══════════════════════════════════════════ -->
+    <!-- Barra de estado -->
     <div class="status-bar">
       <div class="status-left">
         <div class="stat-item">
-          <span class="stat-num" :class="{ 'stat-num--alert': pedidosOrdenados.length > 0 }">
-            {{ pedidosOrdenados.length }}
+          <span class="stat-num" :class="{ 'stat-num--alert': detallesOrdenados.length > 0 }">
+            {{ detallesOrdenados.length }}
           </span>
           <span class="stat-lbl">en cola</span>
         </div>
@@ -26,6 +23,12 @@
       </div>
 
       <div class="status-right">
+        <!-- 🎵 Botón música -->
+        <button class="btn-musica" @click="toggleMusica" :title="musicaActiva ? 'Pausar música' : 'Reproducir música'">
+          <span>{{ musicaActiva ? '(:' : '):' }}</span>
+          <span class="musica-lbl">{{ musicaActiva ? 'Música ON' : 'Música OFF' }}</span>
+        </button>
+
         <div class="conexion-chip" :class="{ 'chip--vivo': sincronizando }">
           <span class="chip-dot"></span>
           <span>{{ sincronizando ? 'En vivo' : 'Sin conexión' }}</span>
@@ -34,24 +37,7 @@
       </div>
     </div>
 
-    <!-- ══════════════════════════════════════
-         BANNER: aviso de refresco tras cambiar un ingrediente
-    ══════════════════════════════════════════ -->
-    <transition name="banner-slide">
-      <div v-if="mostrarAvisoRefresco" class="refresco-banner">
-        <span class="refresco-icono">⚠️</span>
-        <span class="refresco-txt">
-          Cambiaste un ingrediente — recarga la página para evitar pedidos fantasma y asegurarte de que la base de datos esté sincronizada.
-        </span>
-        <button class="refresco-btn-ok" @click="recargarPagina">Recargar ahora</button>
-        <button class="refresco-btn-cerrar" @click="mostrarAvisoRefresco = false" aria-label="Cerrar aviso">✕</button>
-      </div>
-    </transition>
-
-    <!-- ══════════════════════════════════════
-         HU-23 · RESUMEN DE PRODUCTOS
-         Lista vertical con totales acumulados
-    ══════════════════════════════════════════ -->
+    <!-- HU-23: resumen de productos -->
     <section class="resumen-bar" v-if="resumenProductos.length > 0">
       <span class="resumen-titulo">Preparar ahora:</span>
       <ul class="resumen-lista">
@@ -66,25 +52,23 @@
       </ul>
     </section>
 
-    <!-- ══════════════════════════════════════
-         GRID DE PEDIDOS
-    ══════════════════════════════════════════ -->
-    <main class="pedidos-grid" v-if="pedidosExpandidos.length > 0">
+    <!-- Grid de pedidos -->
+    <main class="pedidos-grid" v-if="detallesOrdenados.length > 0">
       <article
-        v-for="(pedido, index) in pedidosExpandidos"
-        :key="pedido._uid"
+        v-for="(item, index) in detallesOrdenados"
+        :key="item.id_detalle"
         class="pedido-card"
-        :class="estadoCard(pedido)"
+        :class="estadoCard(item)"
       >
         <div class="pos-badge" :class="`pos-${posicion(index)}`">
-          {{ posicion(index) === 'first' ? 'PRIMERO' : posicion(index) === 'last' ? 'ÚLTIMO' : '#' + (index + 1) }}
+          {{ item.numero_ticket }}
         </div>
 
         <div class="img-frame">
           <img
-            v-if="pedido.imagen_url"
-            :src="pedido.imagen_url"
-            :alt="pedido.nombre_producto"
+            v-if="item.imagen_url"
+            :src="item.imagen_url"
+            :alt="item.nombre_producto"
             class="combo-img"
             @error="onImgError($event)"
           />
@@ -97,43 +81,50 @@
             </svg>
             <span class="ph-txt">Sin imagen</span>
           </div>
-          <span v-if="tiempoMs(pedido) >= ALERTA_MS" class="urgente-dot"></span>
+          <span v-if="tiempoMs(item) >= ALERTA_MS" class="urgente-dot"></span>
         </div>
 
         <div class="pedido-body">
-          <p class="pedido-ticket">Ticket #{{ pedido.numero_ticket }}</p>
-          <p class="pedido-nombre">{{ pedido.nombre_producto }}</p>
-          <p class="pedido-tipo">{{ pedido.tipo_precio_label }}</p>
-          <p v-if="pedido.instrucciones" class="pedido-ins">
-            {{ pedido.instrucciones }}
+          <p class="pedido-ticket">Ticket #{{ item.numero_ticket }}</p>
+          <p class="pedido-nombre">{{ item.nombre_producto }}</p>
+          <p class="pedido-tipo">{{ item.tipo_precio_label }}</p>
+          <p class="pedido-cantidad" v-if="item.cantidad > 1">x{{ item.cantidad }}</p>
+          <p v-if="item.instrucciones" class="pedido-ins">
+            {{ item.instrucciones }}
           </p>
         </div>
 
         <div class="tiempo-bloque">
           <div class="tiempo-nums">
-            <span class="t-elapsed">{{ fmtMs(tiempoMs(pedido)) }}</span>
+            <span class="t-elapsed">{{ fmtMs(tiempoMs(item)) }}</span>
             <span class="t-total">/ {{ fmtMs(LIMITE_MS) }}</span>
           </div>
           <div class="barra-bg">
             <div
               class="barra-fill"
-              :class="colorBarra(pedido)"
-              :style="{ width: pct(pedido) + '%' }"
+              :class="colorBarra(item)"
+              :style="{ width: pct(item) + '%' }"
             ></div>
           </div>
         </div>
 
-        <div class="pedido-precio">{{ pedido.subtotal }} Bs.</div>
+        <div class="pedido-precio">{{ Number(item.subtotal_detalle).toFixed(2) }} Bs.</div>
 
-        <button
-          class="btn-completar"
-          :disabled="completando === pedido.id_pedido"
-          @click="completarPedido(pedido)"
-        >
-          {{ completando === pedido.id_pedido ? 'Completando…' : 'Completar orden' }}
-        </button>
+        <!-- Botones: Ver receta + Completar -->
+        <div class="card-acciones">
+          <button class="btn-receta" @click="verReceta(item)">
+            Ver receta
+          </button>
+          <button
+            class="btn-completar"
+            :disabled="completando === item.id_detalle"
+            @click="completarDetalle(item)"
+          >
+            {{ completando === item.id_detalle ? '…' : 'Completar' }}
+          </button>
+        </div>
 
-      </article>
+      </div>
     </main>
 
     <div v-else class="vacio">
@@ -142,17 +133,11 @@
 
   </div><!-- /cocina-pedidos-col -->
 
-  <!-- ══════════════════════════════════════
-       PANEL INGREDIENTES (derecha)
-       Usa /api/cocinaIngredientes (cocinaIngredientes.js)
-  ══════════════════════════════════════════ -->
+  <!-- Panel ingredientes -->
   <aside class="ingredientes-panel">
     <div class="ing-header">
       <span class="ing-titulo">Ingredientes</span>
-      <span
-        class="ing-estado-chip"
-        :class="ingredientesAgotados === 0 ? 'chip-ok' : 'chip-falta'"
-      >
+      <span class="ing-estado-chip" :class="ingredientesAgotados === 0 ? 'chip-ok' : 'chip-falta'">
         {{ ingredientesAgotados === 0 ? 'Todo disponible' : `${ingredientesAgotados} falta${ingredientesAgotados > 1 ? 'n' : ''}` }}
       </span>
     </div>
@@ -185,6 +170,51 @@
   </aside>
 
   </div><!-- /cocina-layout -->
+
+  <transition name="modal-fade">
+    <div
+      v-if="recetaVisible"
+      class="modal-overlay"
+      @click.self="cerrarReceta"
+    >
+      <div class="modal-receta" role="dialog" aria-modal="true">
+
+        <!-- Cabecera del modal -->
+        <div class="modal-header">
+          <div class="modal-titulo-wrap">
+            <span class="modal-label">Receta</span>
+            <span class="modal-nombre">{{ recetaActual.nombre_producto }}</span>
+          </div>
+          <button class="modal-cerrar" @click="cerrarReceta" aria-label="Cerrar">✕</button>
+        </div>
+
+        <!-- Imagen de la receta  -->
+        <div class="modal-img-wrap">
+          <img
+            :src="rutaReceta(recetaActual)"
+            :alt="`Receta de ${recetaActual.nombre_producto}`"
+            class="modal-img"
+            @error="onRecetaImgError($event)"
+          />
+          <!-- Placeholder mientras no tengas la imagen -->
+          <div class="modal-img-placeholder" style="display:none">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+              <rect width="64" height="64" rx="12" fill="#FFEBEE"/>
+              <rect x="14" y="12" width="36" height="8" rx="4" fill="#E53935" opacity=".3"/>
+              <ellipse cx="32" cy="38" rx="15" ry="11" fill="#E53935" opacity=".15"/>
+              <rect x="10" y="50" width="44" height="5" rx="2.5" fill="#FFC107" opacity=".35"/>
+            </svg>
+            <p class="modal-ph-txt">
+              Imagen de receta no disponible.<br>
+              Guárdala en <code>/src/assets/recetas/{{ recetaActual.codigo?.toLowerCase() }}.png</code>
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </transition>
+
   </div><!-- /cocina-root -->
 </template>
 
@@ -217,11 +247,12 @@ export default {
       _poll: null,
       LIMITE_MS,
       ALERTA_MS,
-      // ── Ingredientes ──
+      // Ingredientes
       ingredientes: [],
       togglingIngId: null,
-      // ── Aviso de refresco ──
-      mostrarAvisoRefresco: false,
+      // Modal receta
+      recetaVisible: false,
+      recetaActual: {},
     }
   },
 
@@ -235,12 +266,50 @@ export default {
           tipo_precio_label: TIPO_LABELS[p.tipo_precio] || p.tipo_precio,
         }))
     },
+
+    // Expande por cantidad (lógica original de tu amigo, sin cambios)
+    pedidosExpandidos() {
+      const resultado = []
+      for (const pedido of this.pedidosOrdenados) {
+        const cant = pedido.cantidad > 1 ? pedido.cantidad : 1
+        for (let i = 0; i < cant; i++) {
+          resultado.push({
+            ...pedido,
+            _uid: `${pedido.id_detalle}-${i}`,
+            cantidad: 1,
+          })
+        }
+      }
+      return resultado
+    },
+
+    /*
+      Agrupa pedidosExpandidos por id_pedido.
+      Mantiene el orden: el grupo más antiguo va primero.
+      Cada grupo: { id_pedido, numero_ticket, hora_pedido, instrucciones, items[] }
+    */
+    pedidosAgrupados() {
+      const mapa = new Map()
+      for (const item of this.pedidosExpandidos) {
+        if (!mapa.has(item.id_pedido)) {
+          mapa.set(item.id_pedido, {
+            id_pedido:     item.id_pedido,
+            numero_ticket: item.numero_ticket,
+            hora_pedido:   item.hora_pedido,
+            instrucciones: item.instrucciones,
+            items: [],
+          })
+        }
+        mapa.get(item.id_pedido).items.push(item)
+      }
+      return [...mapa.values()]
+    },
+
     horaActual() {
       return new Date(this.ahora).toLocaleTimeString('es-BO', {
         hour: '2-digit', minute: '2-digit', second: '2-digit',
       })
     },
-    // HU-23: totales acumulados por nombre de producto
     resumenProductos() {
       const mapa = {}
       for (const p of this.pedidosOrdenados) {
@@ -252,30 +321,14 @@ export default {
         .map(([nombre, total]) => ({ nombre, total }))
         .sort((a, b) => b.total - a.total)
     },
-    // Expande cada pedido en tarjetas individuales según su cantidad
-    // El resumen numérico (resumenProductos) NO se ve afectado
-    pedidosExpandidos() {
-      const resultado = []
-      for (const pedido of this.pedidosOrdenados) {
-        const cant = pedido.cantidad > 1 ? pedido.cantidad : 1
-        for (let i = 0; i < cant; i++) {
-          resultado.push({
-            ...pedido,
-            _uid: `${pedido.id_pedido}-${i}`,
-            cantidad: 1,
-          })
-        }
-      }
-      return resultado
-    },
     ingredientesAgotados() {
       return this.ingredientes.filter(i => i.out).length
     },
   },
 
   methods: {
-    tiempoMs(p) {
-      return Math.max(0, this.ahora - new Date(p.hora_pedido).getTime())
+    tiempoMs(d) {
+      return Math.max(0, this.ahora - new Date(d.hora_pedido).getTime())
     },
     pct(p) {
       return Math.min((this.tiempoMs(p) / LIMITE_MS) * 100, 100).toFixed(1)
@@ -284,10 +337,10 @@ export default {
       const t = Math.max(0, Math.floor(ms / 1000))
       return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0')
     },
-    estadoCard(p) {
-      const ms = this.tiempoMs(p)
-      if (ms >= CRITICO_MS) return 'card-critico parpadeando-suave'  // HU-21: >10 min
-      const v = parseFloat(this.pct(p))
+    estadoCard(d) {
+      const ms = this.tiempoMs(d)
+      if (ms >= CRITICO_MS) return 'card-critico parpadeando-suave'
+      const v = parseFloat(this.pct(d))
       if (v >= 100) return 'card-urgente parpadeando'
       if (v >= 80)  return 'card-warn'
       return 'card-ok'
@@ -300,7 +353,7 @@ export default {
     },
     posicion(i) {
       if (i === 0) return 'first'
-      if (i === this.pedidosExpandidos.length - 1) return 'last'
+      if (i === this.detallesOrdenados.length - 1) return 'last'
       return 'mid'
     },
     onImgError(e) {
@@ -308,6 +361,49 @@ export default {
       e.target.nextElementSibling && (e.target.nextElementSibling.style.display = 'flex')
     },
 
+    /* ── Música ── */
+    toggleMusica() {
+      const audio = this.$refs.audioPlayer
+      if (!audio) return
+      if (this.musicaActiva) {
+        audio.pause()
+        this.musicaActiva = false
+      } else {
+        audio.play().catch(() => {
+          console.warn('[Cocina] No se pudo reproducir el audio.')
+        })
+        this.musicaActiva = true
+      }
+    },
+
+    /* ── Modal receta ── */
+    verReceta(item) {
+      this.recetaActual = item
+      this.recetaVisible = true
+    },
+    cerrarReceta() {
+      this.recetaVisible = false
+      this.recetaActual  = {}
+    },
+    
+    rutaReceta(item) {
+      if (item.codigo) {
+        return `/src/assets/recetas/${item.codigo.toLowerCase()}.png`
+      }
+      // fallback: nombre del producto normalizado
+      const nombre = (item.nombre_producto || 'sin-receta')
+        .toLowerCase()
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9_-]/g, '')
+      return `/src/assets/recetas/${nombre}.png`
+    },
+    onRecetaImgError(e) {
+      e.target.style.display = 'none'
+      const ph = e.target.nextElementSibling
+      if (ph) ph.style.display = 'flex'
+    },
+
+    /* ── Pedidos ── */
     async cargarPedidos() {
       if (MODO_MOCK) { this._cargarMock(); this.sincronizando = true; return }
       try {
@@ -321,12 +417,12 @@ export default {
       }
     },
 
-    async completarPedido(pedido) {
-      this.completando = pedido.id_pedido
+    async completarDetalle(item) {
+      this.completando = item.id_detalle
       if (MODO_MOCK) {
-        await new Promise(r => setTimeout(r, 600))
-        const p = this.pedidos.find(x => x.id_pedido === pedido.id_pedido)
-        if (p) { p.estado = 'LISTO'; this.pedidosListosHoy++ }
+        await new Promise(r => setTimeout(r, 500))
+        const d = this.detalles.find(x => x.id_detalle === item.id_detalle)
+        if (d) { d.completado = true; this.pedidosListosHoy++ }
         this.completando = null
         return
       }
@@ -374,17 +470,29 @@ export default {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         // Recarga completa para garantizar que la lista refleje el estado real del servidor
         await this.cargarIngredientes()
-        // Avisar al usuario que recargue para evitar pedidos fantasma
-        this.mostrarAvisoRefresco = true
       } catch (err) {
         console.error('[Cocina] Error al actualizar ingrediente:', err)
       } finally {
         this.togglingIngId = null
       }
     },
-
     recargarPagina() {
       window.location.reload()
+    },
+
+    _cargarMock() {
+      if (this.detalles.length > 0) return
+      const b = Date.now()
+      this.detalles = [
+        { id_pedido:1, id_detalle:1, codigo:'COMB-ANT', numero_ticket:'T-0001', hora_pedido:new Date(b-270000).toISOString(), instrucciones:'Sin cebolla', subtotal:'30.00', subtotal_detalle:'30.00', nombre_producto:'Combo Antojito', tipo_precio:'COMBO',    cantidad:1, imagen_url:'', estado:'EN PROCESO', completado:false },
+        { id_pedido:1, id_detalle:2, codigo:'ACOM-ARR-M', numero_ticket:'T-0001', hora_pedido:new Date(b-270000).toISOString(), instrucciones:'Sin cebolla', subtotal:'30.00', subtotal_detalle:'10.50', nombre_producto:'Arroz Mediano',  tipo_precio:'SOLO',     cantidad:1, imagen_url:'', estado:'EN PROCESO', completado:false },
+        { id_pedido:2, id_detalle:3, codigo:'COMB-FIE', numero_ticket:'T-0002', hora_pedido:new Date(b-60000).toISOString(),  instrucciones:'',            subtotal:'18.00', subtotal_detalle:'18.00', nombre_producto:'Combo Fiesta',   tipo_precio:'COMBO',    cantidad:1, imagen_url:'', estado:'EN PROCESO', completado:false },
+      ]
+    },
+
+    /* ── Escape para cerrar modal ── */
+    onKeydown(e) {
+      if (e.key === 'Escape' && this.recetaVisible) this.cerrarReceta()
     },
   },
 
@@ -398,6 +506,7 @@ export default {
   beforeUnmount() {
     clearInterval(this._poll)
     clearInterval(this._tick)
+    window.removeEventListener('keydown', this.onKeydown)
   },
 }
 </script>
@@ -421,7 +530,7 @@ export default {
   color: var(--txt);
 }
 
-/* ── Barra de estado (reemplaza al header propio) ── */
+/* ── Barra de estado ── */
 .status-bar {
   display: flex;
   align-items: center;
@@ -439,9 +548,7 @@ export default {
 .stat-num--green { color: var(--verde); }
 .stat-lbl     { font-size: .68rem; color: var(--txt2); }
 .divider-v    { width: 1px; height: 18px; background: var(--border); }
-
 .status-right { display: flex; align-items: center; gap: .75rem; }
-
 .conexion-chip {
   display: flex; align-items: center; gap: 5px;
   font-size: .68rem; font-weight: 600;
@@ -463,42 +570,61 @@ export default {
   font-size: .78rem; font-weight: 700;
   color: var(--txt);
   font-variant-numeric: tabular-nums;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 3px 12px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 12px;
 }
+
+/* ── HU-23: resumen ── */
+.resumen-bar {
+  background: #fff; border-bottom: 1px solid var(--border);
+  padding: .6rem 1.5rem; display: flex; align-items: flex-start; gap: .85rem;
+}
+.resumen-titulo { font-size: .7rem; font-weight: 700; color: var(--txt2); letter-spacing: .4px; text-transform: uppercase; white-space: nowrap; padding-top: 2px; }
+.resumen-lista  { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
+.resumen-item   { display: flex; align-items: center; gap: .5rem; }
+.resumen-count  { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; border-radius: 6px; background: var(--rojo); color: #fff; font-size: .72rem; font-weight: 700; padding: 0 5px; }
+.resumen-nombre { font-size: .78rem; font-weight: 600; color: var(--txt); }
+
+/* ── Layout ── */
+.cocina-layout { display: flex; align-items: flex-start; min-height: calc(100vh - 68px - 44px); }
+.cocina-pedidos-col { flex: 1 1 0; min-width: 0; overflow-y: auto; }
 
 /* ── Grid ── */
 .pedidos-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(205px, 1fr));
-  gap: 1rem;
-  padding: 1.25rem;
+  gap: 1rem; padding: 1.25rem;
 }
 
-/* ── Tarjeta ── */
-.pedido-card {
-  background: #fff;
-  border-radius: 14px;
-  border: 1.5px solid var(--border);
-  padding: 1rem;
+/* ── Cards dentro del grupo ── */
+.grupo-cards {
   display: flex;
-  flex-direction: column;
-  gap: .55rem;
-  position: relative;
-  transition: border-color .25s;
+  flex-wrap: wrap;
+  gap: .85rem;
+  padding: 1rem;
+}
+
+.pedido-card {
+  background: #fff; border-radius: 14px;
+  border: 1.5px solid var(--border); padding: 1rem;
+  display: flex; flex-direction: column; gap: .55rem;
+  position: relative; transition: border-color .25s;
 }
 .card-ok      { border-color: var(--border); }
 .card-warn    { border-color: var(--amarillo); }
 .card-urgente { border-color: var(--rojo); }
 @keyframes parpadear { 0%,100%{opacity:1} 50%{opacity:.5} }
 .parpadeando  { animation: parpadear 1s ease-in-out infinite; }
+@keyframes parpadear-suave {
+  0%,100% { background-color: #f1a4a4; border-color: #EF9A9A; }
+  50%     { background-color: #FFEBEE; border-color: var(--rojo); }
+}
+.card-critico      { border-color: #f1a4a4; }
+.parpadeando-suave { animation: parpadear-suave 1.6s ease-in-out infinite; }
 
 .pos-badge {
-  position: absolute;
-  top: -11px; left: 50%; transform: translateX(-50%);
-  font-size: .58rem; font-weight: 700; letter-spacing: .7px;
+  position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
+  font-size: .58rem; font-weight: 700; letter-spacing: .5px;
   border-radius: 999px; padding: 2px 10px; white-space: nowrap;
 }
 .pos-first { background: var(--rojo);   color: #fff; }
@@ -506,17 +632,12 @@ export default {
 .pos-last  { background: var(--txt);    color: #fff; }
 
 .img-frame {
-  border-radius: 10px; overflow: hidden;
-  background: var(--bg); height: 130px;
+  border-radius: 10px; overflow: hidden; background: var(--bg); height: 130px;
   display: flex; align-items: center; justify-content: center;
   position: relative; border: 1px solid var(--border);
 }
 .combo-img { width: 100%; height: 100%; object-fit: cover; }
-.img-placeholder {
-  width: 100%; height: 100%;
-  display: flex; align-items: center; justify-content: center;
-  flex-direction: column; gap: 4px;
-}
+.img-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 4px; }
 .ph-txt      { font-size: .6rem; color: var(--txt2); }
 .urgente-dot { position: absolute; top: 8px; right: 8px; width: 10px; height: 10px; border-radius: 50%; background: var(--rojo); }
 
@@ -525,17 +646,13 @@ export default {
 .pedido-nombre   { margin: 2px 0 1px; font-size: .88rem; font-weight: 700; color: var(--txt); }
 .pedido-tipo     { margin: 0; font-size: .72rem; color: var(--txt2); }
 .pedido-cantidad { margin: 2px 0 0; font-size: .78rem; font-weight: 700; color: var(--rojo); }
-.pedido-ins {
-  margin: 4px 0 0; font-size: .7rem; font-weight: 700;
-  color: var(--rojo); background: var(--rojo-s);
-  border-radius: 6px; padding: 3px 8px;
-}
+.pedido-ins { margin: 4px 0 0; font-size: .7rem; font-weight: 700; color: var(--rojo); background: var(--rojo-s); border-radius: 6px; padding: 3px 8px; }
 
 .tiempo-bloque { margin-top: auto; }
-.tiempo-nums   { display: flex; justify-content: space-between; font-size: .63rem; margin-bottom: 3px; font-variant-numeric: tabular-nums; }
+.tiempo-nums   { display: flex; justify-content: space-between; font-size: .6rem; margin-bottom: 3px; font-variant-numeric: tabular-nums; }
 .t-elapsed     { font-weight: 700; color: var(--txt); }
 .t-total       { color: var(--txt2); }
-.barra-bg      { background: var(--border); border-radius: 999px; height: 6px; overflow: hidden; }
+.barra-bg      { background: var(--border); border-radius: 999px; height: 5px; overflow: hidden; }
 .barra-fill    { height: 100%; border-radius: 999px; transition: width .9s linear; }
 .fill-green    { background: var(--verde); }
 .fill-yellow   { background: var(--amarillo); }
@@ -546,272 +663,166 @@ export default {
   border-top: 1px solid var(--border); padding-top: .45rem;
 }
 
+/* ── Botones de la tarjeta ── */
+.card-acciones {
+  display: flex;
+  gap: .4rem;
+}
+.btn-receta {
+  flex: 1;
+  background: #fff;
+  color: var(--rojo);
+  border: 1.5px solid var(--rojo);
+  border-radius: 8px;
+  padding: .45rem .3rem;
+  font-size: .72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.btn-receta:hover { background: var(--rojo-s); }
+
 .btn-completar {
-  width: 100%;
+  flex: 1;
   background: var(--rojo);
   color: #fff;
   border: none;
   border-radius: 8px;
-  padding: .5rem;
-  font-size: .78rem;
+  padding: .45rem .3rem;
+  font-size: .72rem;
   font-weight: 700;
   cursor: pointer;
-  letter-spacing: .2px;
   transition: background .15s, transform .1s, opacity .2s;
 }
 .btn-completar:hover:not(:disabled)  { background: var(--rojo-dk); }
 .btn-completar:active:not(:disabled) { transform: scale(.97); }
 .btn-completar:disabled              { opacity: .6; cursor: not-allowed; }
 
-/* ── HU-21: parpadeo rojo suave tras 10 minutos ── */
-@keyframes parpadear-suave {
-  0%,100% { background-color: #f1a4a4; border-color: #EF9A9A; }
-  50%     { background-color: #FFEBEE; border-color: var(--rojo); }
-}
-.card-critico       { border-color: #f1a4a4; }
-.parpadeando-suave  { animation: parpadear-suave 1.6s ease-in-out infinite; }
-
-/* ── HU-23: barra de resumen de productos ── */
-.resumen-bar {
-  background: #fff;
-  border-bottom: 1px solid var(--border);
-  padding: .6rem 1.5rem;
-  display: flex;
-  align-items: flex-start;
-  gap: .85rem;
-}
-.resumen-titulo {
-  font-size: .7rem;
-  font-weight: 700;
-  color: var(--txt2);
-  letter-spacing: .4px;
-  text-transform: uppercase;
-  white-space: nowrap;
-  padding-top: 2px;
-}
-.resumen-lista {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: .3rem;
-}
-.resumen-item {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-}
-.resumen-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  background: var(--rojo);
-  color: #fff;
-  font-size: .72rem;
-  font-weight: 700;
-  padding: 0 5px;
-}
-.resumen-nombre {
-  font-size: .78rem;
-  font-weight: 600;
-  color: var(--txt);
-}
-
-/* ── Layout principal ── */
-.cocina-layout {
-  display: flex;
-  align-items: flex-start;
-  min-height: calc(100vh - 68px - 44px); /* descuenta navbar + status-bar */
-}
-.cocina-pedidos-col {
-  flex: 1 1 0;
-  min-width: 0;
-  overflow-y: auto;
-}
-
 /* ── Panel ingredientes ── */
-.ingredientes-panel {
-  flex: 0 0 220px;
-  width: 220px;
-  background: #fff;
-  border-left: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  align-self: stretch;
-}
-
-.ing-header {
-  background: var(--rojo);
-  padding: .55rem .75rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: .5rem;
-  flex-shrink: 0;
-}
-.ing-titulo {
-  color: #fff;
-  font-size: .75rem;
-  font-weight: 700;
-  letter-spacing: .5px;
-  text-transform: uppercase;
-}
-.ing-estado-chip {
-  font-size: .62rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1.5px solid rgba(255,255,255,.6);
-  white-space: nowrap;
-}
+.ingredientes-panel { flex: 0 0 220px; width: 220px; background: #fff; border-left: 1px solid var(--border); display: flex; flex-direction: column; align-self: stretch; }
+.ing-header { background: var(--rojo); padding: .55rem .75rem; display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-shrink: 0; }
+.ing-titulo { color: #fff; font-size: .75rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
+.ing-estado-chip { font-size: .62rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1.5px solid rgba(255,255,255,.6); white-space: nowrap; }
 .chip-ok    { color: #fff; }
 .chip-falta { color: #FFCA07; border-color: #FFCA07; }
+.ing-lista { flex: 1 1 0; overflow-y: auto; max-height: calc(100vh - 68px - 44px - 42px - 48px); padding: .5rem .6rem; display: flex; flex-direction: column; gap: .4rem; }
+.ing-item { display: flex; align-items: center; justify-content: space-between; background: #FFCA07; border: 1.5px solid #D90404; border-radius: 8px; padding: 6px 8px; transition: opacity .2s; }
+.ing-item--out { opacity: .72; background: #ecc434; }
+.ing-nombre { font-size: .72rem; font-weight: 700; color: #1A1A1A; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: .4rem; }
+.ing-btn { font-size: .65rem; font-weight: 700; padding: 4px 9px; border-radius: 6px; border: 2px solid; cursor: pointer; transition: background .15s, transform .1s; white-space: nowrap; flex-shrink: 0; }
+.ing-btn:disabled { opacity: .5; cursor: not-allowed; }
+.ing-btn--disponible { background: #EB1A20; color: #fff; border-color: #8a0825; }
+.ing-btn--disponible:hover:not(:disabled) { background: #a00025; transform: scale(.97); }
+.ing-btn--restore { background: #2d5a1a; color: #a8f07a; border-color: #8a0825; }
+.ing-btn--restore:hover:not(:disabled) { background: #1a3a0a; transform: scale(.97); }
+.ing-btn-refresh { flex-shrink: 0; margin: .5rem .6rem .6rem; background: var(--rojo); color: #fff; border: none; border-radius: 7px; padding: .42rem; font-size: .68rem; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; cursor: pointer; transition: background .15s, transform .1s; }
+.ing-btn-refresh:hover { background: var(--rojo-dk); transform: scale(.98); }
+.ing-vacio { font-size: .72rem; color: var(--txt2); text-align: center; padding: 1.5rem 0; }
 
-.ing-lista {
-  flex: 1 1 0;
-  overflow-y: auto;
-  max-height: calc(100vh - 68px - 44px - 42px - 48px); /* viewport - navbar - statusbar - ing-header - refresh-btn */
-  padding: .5rem .6rem;
+.vacio { text-align: center; padding: 5rem 1rem; color: var(--txt2); font-size: .9rem; }
+
+/* ══════════════════════════════════════════════
+   MODAL VER RECETA
+══════════════════════════════════════════════ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .65);
   display: flex;
-  flex-direction: column;
-  gap: .4rem;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
 }
 
-.ing-item {
+.modal-receta {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,.3);
+}
+
+.modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #FFCA07;
-  border: 1.5px solid #D90404;
-  border-radius: 8px;
-  padding: 6px 8px;
-  transition: opacity .2s;
-}
-.ing-item--out {
-  opacity: .72;
-  background: #ecc434;
-}
-
-.ing-nombre {
-  font-size: .72rem;
-  font-weight: 700;
-  color: #1A1A1A;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin-right: .4rem;
-}
-
-.ing-btn {
-  font-size: .65rem;
-  font-weight: 700;
-  padding: 4px 9px;
-  border-radius: 6px;
-  border: 2px solid;
-  cursor: pointer;
-  transition: background .15s, transform .1s;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.ing-btn:disabled { opacity: .5; cursor: not-allowed; }
-.ing-btn--disponible {
-  background: #EB1A20;
-  color: #fff;
-  border-color: #8a0825;
-}
-.ing-btn--disponible:hover:not(:disabled) { background: #a00025; transform: scale(.97); }
-.ing-btn--restore {
-  background: #2d5a1a;
-  color: #a8f07a;
-  border-color: #8a0825;
-}
-.ing-btn--restore:hover:not(:disabled) { background: #1a3a0a; transform: scale(.97); }
-
-.ing-btn-refresh {
-  flex-shrink: 0;
-  margin: .5rem .6rem .6rem;
   background: var(--rojo);
-  color: #fff;
+  padding: .75rem 1rem;
+  flex-shrink: 0;
+}
+.modal-titulo-wrap { display: flex; flex-direction: column; }
+.modal-label  { font-size: .62rem; font-weight: 700; color: rgba(255,255,255,.75); text-transform: uppercase; letter-spacing: .8px; }
+.modal-nombre { font-size: 1rem; font-weight: 700; color: #fff; line-height: 1.2; }
+
+.modal-cerrar {
+  background: rgba(255,255,255,.2);
   border: none;
-  border-radius: 7px;
-  padding: .42rem;
-  font-size: .68rem;
-  font-weight: 700;
-  letter-spacing: .3px;
-  text-transform: uppercase;
+  color: #fff;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  font-size: .9rem;
   cursor: pointer;
-  transition: background .15s, transform .1s;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s;
+  flex-shrink: 0;
 }
-.ing-btn-refresh:hover { background: var(--rojo-dk); transform: scale(.98); }
+.modal-cerrar:hover { background: rgba(255,255,255,.35); }
 
-.ing-vacio {
-  font-size: .72rem;
-  color: var(--txt2);
-  text-align: center;
-  padding: 1.5rem 0;
-}
-
-/* ── Aviso de refresco de pestaña ── */
-.refresco-banner {
+.modal-img-wrap {
+  flex: 1;
+  overflow-y: auto;
   display: flex;
   align-items: center;
-  gap: .65rem;
-  background: #FFF8E1;
-  border-bottom: 2px solid #FFC107;
-  padding: .55rem 1.25rem;
-  flex-wrap: wrap;
+  justify-content: center;
+  padding: 1.25rem;
+  background: var(--bg);
 }
-.refresco-icono {
-  font-size: 1rem;
-  flex-shrink: 0;
+
+.modal-img {
+  width: 100%;
+  height: auto;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 10px;
 }
-.refresco-txt {
-  flex: 1 1 0;
+
+.modal-img-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .75rem;
+  text-align: center;
+}
+.modal-ph-txt {
+  font-size: .78rem;
+  color: var(--txt2);
+  line-height: 1.6;
+}
+.modal-ph-txt code {
+  background: var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
   font-size: .72rem;
-  font-weight: 600;
-  color: #5D4037;
-  min-width: 160px;
+  color: var(--rojo);
 }
-.refresco-btn-ok {
-  background: #E53935;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: .3rem .85rem;
-  font-size: .7rem;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background .15s, transform .1s;
-  flex-shrink: 0;
-}
-.refresco-btn-ok:hover { background: #C62828; transform: scale(.97); }
-.refresco-btn-cerrar {
-  background: transparent;
-  border: none;
-  color: #9E9E9E;
-  font-size: .85rem;
-  cursor: pointer;
-  padding: 2px 4px;
-  line-height: 1;
-  flex-shrink: 0;
-  transition: color .15s;
-}
-.refresco-btn-cerrar:hover { color: #333; }
 
-/* transición slide-down */
-.banner-slide-enter-active,
-.banner-slide-leave-active { transition: max-height .3s ease, opacity .3s ease; overflow: hidden; }
-.banner-slide-enter-from,
-.banner-slide-leave-to     { max-height: 0; opacity: 0; }
-.banner-slide-enter-to,
-.banner-slide-leave-from   { max-height: 80px; opacity: 1; }
-
-.vacio { text-align: center; padding: 5rem 1rem; color: var(--txt2); font-size: .9rem; }
+/* Animación de entrada/salida del modal */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity .2s ease;
+}
+.modal-fade-enter-active .modal-receta,
+.modal-fade-leave-active .modal-receta {
+  transition: transform .2s ease;
+}
+.modal-fade-enter-from { opacity: 0; }
+.modal-fade-enter-from .modal-receta { transform: scale(.95); }
+.modal-fade-leave-to { opacity: 0; }
+.modal-fade-leave-to .modal-receta { transform: scale(.95); }
 </style>
