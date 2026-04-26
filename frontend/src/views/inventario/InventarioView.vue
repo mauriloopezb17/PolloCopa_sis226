@@ -29,6 +29,12 @@
         <span class="section-badge">{{ ingredientesFiltrados.length }} ingredientes</span>
       </div>
       <div class="section-header-right">
+        <button class="btn-musica-inv" @click="toggleMusica" :title="musicaActiva ? 'Pausar música' : 'Reproducir música'">
+          <span class="musica-icono">{{ musicaActiva ? '♪' : '♩' }}</span>
+          <span class="musica-barra barra-1" :class="{ 'barra-activa': musicaActiva }"></span>
+          <span class="musica-barra barra-2" :class="{ 'barra-activa': musicaActiva }"></span>
+          <span class="musica-barra barra-3" :class="{ 'barra-activa': musicaActiva }"></span>
+        </button>
         <button class="btn-historial" @click="irHistorial">
           Historial
         </button>
@@ -408,11 +414,16 @@
     </template>
     <!-- fin v-else inventario principal -->
 
+    <!-- 🎵 Audio -->
+    <audio ref="audioPlayerInv" loop>
+      <source src="/src/assets/musica/overcooked_caja.mp3" type="audio/mpeg" />
+    </audio>
+
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 // CAMBIO 1: importar los 3 componentes y agregar vistaActual
 import Historialingrediente from './Historialingrediente.vue'
@@ -420,6 +431,46 @@ import Registromerma        from './Registromerma.vue'
 import Valorinventario      from './Valorinventario.vue'
 
 const vistaActual = ref('inventario')
+
+// ── 🎵 Música ──────────────────────────────────────────────
+const audioPlayerInv = ref(null)
+const musicaActiva   = ref(false)
+
+function toggleMusica() {
+  const audio = audioPlayerInv.value
+  if (!audio) return
+  if (musicaActiva.value) {
+    audio.pause()
+    musicaActiva.value = false
+  } else {
+    audio.play().catch(() => console.warn('[Inventario] No se pudo reproducir el audio.'))
+    musicaActiva.value = true
+  }
+}
+
+onUnmounted(() => {
+  if (audioPlayerInv.value) audioPlayerInv.value.pause()
+})
+
+// ── 🎵 Música ──────────────────────────────────────────────
+const audioPlayerInv = ref(null)
+const musicaActiva   = ref(false)
+
+function toggleMusica() {
+  const audio = audioPlayerInv.value
+  if (!audio) return
+  if (musicaActiva.value) {
+    audio.pause()
+    musicaActiva.value = false
+  } else {
+    audio.play().catch(() => console.warn('[Inventario] No se pudo reproducir el audio.'))
+    musicaActiva.value = true
+  }
+}
+
+onUnmounted(() => {
+  if (audioPlayerInv.value) audioPlayerInv.value.pause()
+})
 
 const API = 'https://pollocopa.62344037.xyz/api/inventario'
 
@@ -732,6 +783,59 @@ function formatFecha(fechaStr) {
 }
 .btn-nuevo:hover { background: #b50826; }
 .btn-nuevo-icon { font-size: 16px; font-weight: 900; }
+
+/* ── BOTÓN MÚSICA ───────────────────────── */
+.btn-musica-inv {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 13px;
+  background: #fff;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  height: 36px;
+}
+.btn-musica-inv:hover {
+  border-color: #D90B31;
+  background: rgba(217, 11, 49, 0.04);
+}
+
+.musica-icono {
+  font-size: 14px;
+  color: #888;
+  transition: color 0.2s;
+  line-height: 1;
+}
+.btn-musica-inv:hover .musica-icono { color: #D90B31; }
+
+/* Barras animadas tipo ecualizador */
+.musica-barra {
+  display: inline-block;
+  width: 3px;
+  border-radius: 2px;
+  background: #ccc;
+  transition: background 0.2s;
+  animation: none;
+}
+.btn-musica-inv:hover .musica-barra { background: #D90B31; }
+
+.barra-1 { height: 8px; }
+.barra-2 { height: 12px; }
+.barra-3 { height: 6px; }
+
+/* Cuando la música está activa: barras animadas + colores vivos */
+.barra-activa {
+  background: #D90B31 !important;
+}
+.barra-1.barra-activa { animation: eq1 0.7s ease-in-out infinite alternate; }
+.barra-2.barra-activa { animation: eq2 0.5s ease-in-out infinite alternate; }
+.barra-3.barra-activa { animation: eq3 0.9s ease-in-out infinite alternate; }
+
+@keyframes eq1 { from { height: 4px; } to { height: 14px; } }
+@keyframes eq2 { from { height: 8px; } to { height: 4px;  } }
+@keyframes eq3 { from { height: 6px; } to { height: 12px; } }
 
 /* ── FILTROS PILL ──────────────────────── */
 .cat-bar {
