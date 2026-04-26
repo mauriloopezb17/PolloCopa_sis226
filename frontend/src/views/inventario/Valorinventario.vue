@@ -102,7 +102,7 @@ onMounted(async () => { await Promise.all([cargarIngredientes(), cargarProveedor
       <div v-if="errorMsg" class="banner-error">{{ errorMsg }}</div>
       <div class="form-grid">
         <div class="field field-wide"><label class="field-label">Ingrediente *</label><select class="input" v-model="fIngrediente"><option v-for="i in ingredientes" :key="i.id" :value="i.id">{{ i.nombre }} ({{ i.unidad }})</option></select></div>
-        <div class="field"><label class="field-label">Proveedor</label><select class="input" v-model="fProveedor"><option :value="null">— ninguno —</option><option v-for="p in proveedores" :key="p.id" :value="p.id">{{ p.nombre }}</option></select></div>
+        <div class="field"><label class="field-label">Proveedor</label><select class="input" v-model="fProveedor"><option v-for="p in proveedores" :key="p.id" :value="p.id">{{ p.nombre }}</option></select></div>
         <div class="field"><label class="field-label">Cantidad *</label><input class="input" v-model="fCantidad" type="number" placeholder="0.000" min="0.001" step="0.001" /></div>
         <div class="field"><label class="field-label">Costo unitario (Bs.) *</label><input class="input" v-model="fCosto" type="number" placeholder="0.00" min="0" step="0.01" /></div>
         <div class="field"><label class="field-label">Lote</label><input class="input" v-model="fLote" placeholder="Ej: L-2025-04" /></div>
