@@ -20,10 +20,13 @@
       </div>
 
       <div class="status-right">
-        <!-- 🎵 Botón música -->
-        <button class="btn-musica" @click="toggleMusica" :title="musicaActiva ? 'Pausar música' : 'Reproducir música'">
-          <span>{{ musicaActiva ? '(:' : '):' }}</span>
-          <span class="musica-lbl">{{ musicaActiva ? 'Música ON' : 'Música OFF' }}</span>
+        <!-- 🎵 Botón música mejorado -->
+        <button class="btn-musica" :class="{ 'btn-musica--activa': musicaActiva }" @click="toggleMusica" :title="musicaActiva ? 'Pausar música' : 'Reproducir música'">
+          <span class="musica-icono">{{ musicaActiva ? '♪' : '♩' }}</span>
+          <span class="musica-barra barra-1" :class="{ 'barra-activa': musicaActiva }"></span>
+          <span class="musica-barra barra-2" :class="{ 'barra-activa': musicaActiva }"></span>
+          <span class="musica-barra barra-3" :class="{ 'barra-activa': musicaActiva }"></span>
+          <span class="musica-lbl">{{ musicaActiva ? 'ON :)' : 'OFF :(' }}</span>
         </button>
 
         <div class="conexion-chip" :class="{ 'chip--vivo': sincronizando }">
@@ -541,16 +544,71 @@ export default {
 .divider-v    { width: 1px; height: 18px; background: var(--border); }
 .status-right { display: flex; align-items: center; gap: .65rem; }
 
-/* ── Botón música ── */
+/* ── Botón música mejorado ── */
 .btn-musica {
-  display: flex; align-items: center; gap: 5px;
-  background: var(--bg); border: 1px solid var(--border);
-  border-radius: 999px; padding: 3px 12px;
-  cursor: pointer; font-size: .68rem; font-weight: 700; color: var(--txt2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 11px 4px 9px;
+  cursor: pointer;
+  font-size: .68rem;
+  font-weight: 700;
+  color: var(--txt2);
   transition: all .2s;
+  height: 28px;
 }
-.btn-musica:hover { border-color: var(--rojo); color: var(--rojo); background: var(--rojo-s); }
-.musica-lbl { letter-spacing: .2px; }
+.btn-musica:hover {
+  border-color: var(--rojo);
+  color: var(--rojo);
+  background: var(--rojo-s);
+}
+.btn-musica--activa {
+  border-color: var(--rojo);
+  background: var(--rojo-s);
+  color: var(--rojo);
+}
+
+/* Nota musical */
+.musica-icono {
+  font-size: .85rem;
+  line-height: 1;
+  transition: color .2s;
+}
+
+/* Barras tipo ecualizador */
+.musica-barra {
+  display: inline-block;
+  width: 2.5px;
+  border-radius: 2px;
+  background: var(--border);
+  transition: background .2s;
+  flex-shrink: 0;
+}
+.btn-musica:hover .musica-barra,
+.btn-musica--activa .musica-barra {
+  background: var(--rojo);
+}
+
+.barra-1 { height: 6px; }
+.barra-2 { height: 10px; }
+.barra-3 { height: 5px; }
+
+.barra-activa { background: var(--rojo) !important; }
+.barra-1.barra-activa { animation: eq1 0.7s ease-in-out infinite alternate; }
+.barra-2.barra-activa { animation: eq2 0.5s ease-in-out infinite alternate; }
+.barra-3.barra-activa { animation: eq3 0.9s ease-in-out infinite alternate; }
+
+@keyframes eq1 { from { height: 3px; } to { height: 11px; } }
+@keyframes eq2 { from { height: 7px; } to { height: 3px;  } }
+@keyframes eq3 { from { height: 4px; } to { height: 10px; } }
+
+.musica-lbl {
+  letter-spacing: .2px;
+  margin-left: 2px;
+}
 
 .conexion-chip {
   display: flex; align-items: center; gap: 5px;
