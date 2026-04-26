@@ -14,6 +14,8 @@ app.use(express.json())
 const inventario = require('./routes/inventario.routes')
 app.use('/api/inventario', inventario)
 
+
+
 app.listen(3000, () => {
   console.log('backend corriendo en puerto 3000')
 })

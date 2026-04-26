@@ -18,6 +18,9 @@ app.use('/api/ingredients', require('./routes/cocinaIngredientes'))
 const inventarioRoutes = require('./routes/inventario')
 app.use('/api/inventario', inventarioRoutes)
 
+const menuAdminRouter = require('./routes/menuadmin')
+app.use('/api/menuAdmin', menuAdminRouter)
+
 app.listen(PORT, () => {
   console.log(`🚀  Servidor en http://localhost:${PORT}`)
 })
