@@ -41,6 +41,7 @@
           <InventarioTab v-else-if="activeTab === 'inventario'" />
           <CajaTab v-else-if="activeTab === 'caja'" />
           <CocinaTab v-else-if="activeTab === 'cocina'" />
+          <MenuAdminTab v-else-if="activeTab === 'menuAdmin'" />
         </div>
       </transition>
     </main>
@@ -53,12 +54,14 @@ import MenuTab from './menu/MenuTab.vue'
 import InventarioTab from './inventario/InventarioView.vue'
 import CajaTab from './caja/CajaTab.vue'
 import CocinaTab from './cocina/CocinaPedidos.vue'
+import MenuAdminTab from './admin/MenuAdmin.vue'
 
 const tabs = [
-  { id: 'menu', label: 'Menu' },
+  { id: 'menu',      label: 'Menu'      },
   { id: 'inventario', label: 'Inventario' },
-  { id: 'caja', label: 'Caja' },
-  { id: 'cocina', label: 'Cocina' },
+  { id: 'caja',      label: 'Caja'      },
+  { id: 'cocina',    label: 'Cocina'    },
+  { id: 'menuAdmin', label: 'Recetas' },
 ]
 
 const activeTab = ref('menu')
