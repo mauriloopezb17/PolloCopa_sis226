@@ -21,6 +21,10 @@ app.use('/api/inventario', inventarioRoutes)
 const menuAdminRouter = require('./routes/menuadmin')
 app.use('/api/menuAdmin', menuAdminRouter)
 
+const historialRoutes = require('./routes/historial')
+app.use('/api/historial', historialRoutes)
+
+
 app.listen(PORT, () => {
   console.log(`🚀  Servidor en http://localhost:${PORT}`)
 })
