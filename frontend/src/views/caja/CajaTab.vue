@@ -166,7 +166,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import CajaProductoCard    from './CajaProductoCard.vue'
 import CajaPedidoPanel     from './CajaPedidoPanel.vue'
 import CajaReceiptModal    from './CajaReceiptModal.vue'
@@ -250,8 +250,42 @@ async function cargarDatos() {
   }
 }
 
+// ── Polling liviano del catálogo ──────────────────────────
+// Consulta un fingerprint (total/disponibles) cada 8 s.
+// Solo llama a cargarDatos() si el valor cambió en la DB.
+let _pollTimer     = null
+let _lastFingerprint = null
+
+async function _pollFingerprint() {
+  try {
+    const res = await fetch(`${API}/productos/fingerprint`)
+    if (!res.ok) return
+    const { total, disponibles } = await res.json()
+    const fp = `${total}:${disponibles}`
+    if (_lastFingerprint !== null && fp !== _lastFingerprint) {
+      await cargarDatos()
+    }
+    _lastFingerprint = fp
+  } catch {
+    // red caída — no hacer nada, el próximo tick reintenta
+  }
+}
+
 onMounted(async () => {
   await Promise.all([verificarTurno(), cargarDatos()])
+  // Tomar el fingerprint inicial después de la primera carga
+  try {
+    const res = await fetch(`${API}/productos/fingerprint`)
+    if (res.ok) {
+      const { total, disponibles } = await res.json()
+      _lastFingerprint = `${total}:${disponibles}`
+    }
+  } catch {}
+  _pollTimer = setInterval(_pollFingerprint, 8000)
+})
+
+onUnmounted(() => {
+  clearInterval(_pollTimer)
 })
 
 // ── Filtrado ───────────────────────────────────────────────
