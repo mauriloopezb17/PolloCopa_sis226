@@ -105,16 +105,20 @@
           </div>
         </div>
 
-        <div class="pedido-precio">{{ pedido.subtotal }} Bs.</div>
+        <div class="pedido-precio">{{ Number(pedido.subtotal_detalle).toFixed(2) }} Bs.</div>
 
-        <button
-          class="btn-completar"
-          :disabled="completando === pedido.id_pedido"
-          @click="completarPedido(pedido)"
-        >
-          {{ completando === pedido.id_pedido ? 'Completando…' : 'Completar orden' }}
-        </button>
-
+        <div class="card-acciones">
+          <button class="btn-receta" @click="verReceta(pedido)">
+            Ver receta
+          </button>
+          <button
+            class="btn-completar"
+            :disabled="completando === pedido.id_detalle"
+            @click="completarDetalle(pedido)"
+          >
+            {{ completando === pedido.id_detalle ? 'Completando…' : 'Completar orden' }}
+          </button>
+        </div>
       </article>
     </main>
 
@@ -162,6 +166,28 @@
     </button>
   </aside>
 
+  <transition name="modal-fade">
+  <div v-if="recetaVisible" class="modal-overlay" @click.self="cerrarReceta">
+    <div class="modal-receta" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <div class="modal-titulo-wrap">
+          <span class="modal-label">Receta</span>
+          <span class="modal-nombre">{{ recetaActual.nombre_producto }}</span>
+        </div>
+        <button class="modal-cerrar" @click="cerrarReceta" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="modal-img-wrap">
+        <img
+          :src="rutaReceta(recetaActual)"
+          :alt="`Receta de ${recetaActual.nombre_producto}`"
+          class="modal-img"
+          @error="onRecetaImgError($event)"
+        />
+      </div>
+    </div>
+  </div>
+</transition>
+
   </div><!-- /cocina-layout -->
   </div><!-- /cocina-root -->
 </template>
@@ -194,6 +220,8 @@ export default {
       _tick: null,
       _poll: null,
       LIMITE_MS,
+      recetaVisible: false,
+recetaActual: {}, 
       ALERTA_MS,
       // ── Ingredientes ──
       ingredientes: [],
@@ -329,30 +357,23 @@ export default {
       }
     },
 
-    async completarPedido(pedido) {
-      this.completando = pedido.id_pedido
-      if (MODO_MOCK) {
-        await new Promise(r => setTimeout(r, 600))
-        const p = this.pedidos.find(x => x.id_pedido === pedido.id_pedido)
-        if (p) { p.estado = 'LISTO'; this.pedidosListosHoy++ }
-        this.completando = null
-        return
-      }
-      try {
-        const res = await fetch(`${API_BASE}/pedidos/${pedido.id_pedido}/completar`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-        })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        await this.cargarPedidos()
-        this.pedidosListosHoy++
-      } catch (err) {
-        console.error('[Cocina] Error al completar:', err)
-        alert('No se pudo completar el pedido. Intenta de nuevo.')
-      } finally {
-        this.completando = null
-      }
-    },
+    async completarDetalle(item) {
+  this.completando = item.id_detalle
+  try {
+    const res = await fetch(`${API_BASE}/detalles/${item.id_detalle}/completar`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    this.pedidosListosHoy++
+    await this.cargarPedidos()
+  } catch (err) {
+    console.error('[Cocina] Error al completar ítem:', err)
+    alert('No se pudo completar el ítem. Intenta de nuevo.')
+  } finally {
+    this.completando = null
+  }
+},
 
     _cargarMock() {
       if (this.pedidos.length > 0) return
@@ -797,6 +818,64 @@ export default {
   transition: background .15s, transform .1s;
   flex-shrink: 0;
 }
+.card-acciones {
+  display: flex;
+  gap: .4rem;
+}
+.btn-receta {
+  flex: 1;
+  background: #fff;
+  color: var(--rojo);
+  border: 1.5px solid var(--rojo);
+  border-radius: 8px;
+  padding: .45rem .3rem;
+  font-size: .72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.btn-receta:hover { background: var(--rojo-s); }
+
+/* Modal */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.65);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; padding: 1rem;
+}
+.modal-receta {
+  background: #fff; border-radius: 16px;
+  width: 100%; max-width: 1150px;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,.3);
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--rojo); padding: .75rem 1rem; flex-shrink: 0;
+}
+.modal-titulo-wrap { display: flex; flex-direction: column; }
+.modal-label  { font-size: .62rem; font-weight: 700; color: rgba(255,255,255,.75); text-transform: uppercase; letter-spacing: .8px; }
+.modal-nombre { font-size: 1rem; font-weight: 700; color: #fff; }
+.modal-cerrar {
+  background: rgba(255,255,255,.2); border: none; color: #fff;
+  width: 32px; height: 32px; border-radius: 50%; font-size: .9rem;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background .15s;
+}
+.modal-cerrar:hover { background: rgba(255,255,255,.35); }
+.modal-img-wrap {
+  flex: 1; overflow-y: auto;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1.25rem; background: var(--bg);
+}
+.modal-img {
+  width: 100%; height: auto;
+  object-fit: contain; border-radius: 10px;
+}
+.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity .2s ease; }
+.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
 .refresco-btn-ok:hover { background: #C62828; transform: scale(.97); }
 .refresco-btn-cerrar {
   background: transparent;
