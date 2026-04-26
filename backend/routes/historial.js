@@ -340,7 +340,7 @@ router.get('/valor/resumen', async (req, res) => {
 // GET /api/historial/valor/compras
 router.get('/valor/compras', async (req, res) => {
   const { id_insumo, fecha_desde, fecha_hasta } = req.query
-  const condiciones = [`tm.afecta_stock = 1`, `m.costo_unitario IS NOT NULL`]
+ const condiciones = [`tm.afecta_stock = 1`]
   const valores     = []
   let   idx         = 1
 
@@ -380,7 +380,7 @@ router.post('/valor/registrar-compra', async (req, res) => {
   const { id_insumo, id_proveedor, cantidad, costo_unitario, lote, observacion } = req.body
 
   if (!id_insumo || !cantidad || !costo_unitario)
-    return res.status(400).json({ error: 'Faltan campos: id_insumo, cantidad, costo_unitario' })
+    return res.status(400).json({ error: 'Faltan campos: id_insumo, cantidad o costo unitario' })
   if (Number(cantidad) <= 0)
     return res.status(400).json({ error: 'La cantidad debe ser mayor a 0' })
   if (Number(costo_unitario) < 0)

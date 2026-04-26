@@ -7,7 +7,7 @@
     ══════════════════════════════════════════════════════════ -->
     <div v-if="!autenticado" class="gate-overlay">
       <div class="gate-card">
-        <div class="gate-icon">🔐</div>
+        <div class="gate-icon">Hola</div>
         <h2 class="gate-titulo">Acceso Administrativo</h2>
         <p class="gate-sub">Ingresa la contraseña para gestionar el menú</p>
 
@@ -47,6 +47,9 @@
         <div class="msb-right">
           <button class="madmin-btn madmin-btn--nuevo" @click="abrirFormNuevo">
             + Nuevo plato
+          </button>
+          <button class="madmin-btn madmin-btn--nuevo-ing" @click="abrirModalNuevoIng">
+            + Nuevo ingrediente
           </button>
           <button class="madmin-btn madmin-btn--salir" @click="salir">
             Salir
@@ -157,6 +160,79 @@
       </div>
 
     </template>
+
+    <!-- ══════════════════════════════════════════════════════
+         MODAL — NUEVO INGREDIENTE
+    ══════════════════════════════════════════════════════════ -->
+    <transition name="modal-fade">
+      <div v-if="modalIngAbierto" class="modal-backdrop" @mousedown.self="cerrarModalNuevoIng">
+        <div class="modal-card modal-card--ing">
+
+          <div class="modal-header">
+            <h3 class="modal-titulo">Nuevo ingrediente</h3>
+            <button class="modal-close" @click="cerrarModalNuevoIng">✕</button>
+          </div>
+
+          <div class="modal-body">
+
+            <div class="mform-col">
+
+              <label class="mform-label">Nombre *
+                <input v-model="ingForm.nombre" class="mform-input" placeholder="Ej: Pollo Fresco" maxlength="150" />
+              </label>
+
+              <label class="mform-label">Unidad de medida *</label>
+              <div class="ing-unidades">
+                <button
+                  v-for="u in ingUnidades" :key="u.valor"
+                  class="ing-unidad-btn"
+                  :class="{ 'ing-unidad-btn--active': ingForm.unidad_medida === u.valor }"
+                  @click="ingForm.unidad_medida = u.valor"
+                >{{ u.label }}</button>
+              </div>
+
+              <label class="mform-label">Categoría *</label>
+              <div class="ing-unidades">
+                <button
+                  v-for="cat in categoriasIngrediente" :key="cat.id_categoria_ingrediente"
+                  class="ing-unidad-btn"
+                  :class="{ 'ing-unidad-btn--active': ingForm.id_categoria_ingrediente === cat.id_categoria_ingrediente }"
+                  @click="ingForm.id_categoria_ingrediente = cat.id_categoria_ingrediente"
+                >{{ cat.nombre }}</button>
+              </div>
+
+              <div class="mform-precios-row">
+                <label class="mform-label mform-label--sm">Stock mínimo
+                  <input v-model.number="ingForm.stock_minimo" type="number" min="0" step="0.001" class="mform-input" placeholder="0" />
+                </label>
+                <label class="mform-label mform-label--sm">Costo por unidad (Bs)
+                  <input v-model.number="ingForm.costo_unitario" type="number" min="0" step="0.01" class="mform-input" placeholder="0.00" />
+                </label>
+              </div>
+
+              <label class="mform-label">Descripción
+                <textarea v-model="ingForm.descripcion" class="mform-input mform-textarea" rows="2" placeholder="Opcional…"></textarea>
+              </label>
+
+            </div>
+
+          </div>
+
+          <div class="modal-footer">
+            <p v-if="errorIngForm" class="modal-error">{{ errorIngForm }}</p>
+            <button class="madmin-btn madmin-btn--cancel" @click="cerrarModalNuevoIng">Cancelar</button>
+            <button
+              class="madmin-btn madmin-btn--guardar"
+              :disabled="guardandoIng || !ingFormValido"
+              @click="guardarNuevoIng"
+            >
+              {{ guardandoIng ? 'Guardando…' : 'Guardar ingrediente' }}
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </transition>
 
     <!-- ══════════════════════════════════════════════════════
          MODAL — CREAR / EDITAR PLATO (HU-24)
@@ -294,8 +370,8 @@
 import { ref, computed, onMounted } from 'vue'
 
 // ── Config ───────────────────────────────────────────────────
-const API = 'http://localhost:3000/api/menuAdmin'
-const API_BASE = API   // expuesto al template para el panel de diagnóstico
+const API     = 'http://localhost:3000/api/menuAdmin'
+const API_INV = 'http://localhost:3000/api/inventario'
 const PASSWORD_ADMIN = 'admin'   // ← cambiar cuando haya auth real
 
 // ── Auth ─────────────────────────────────────────────────────
@@ -323,7 +399,8 @@ function salir() {
 // ── Datos ────────────────────────────────────────────────────
 const productos    = ref([])
 const categorias   = ref([])
-const ingredientes = ref([])
+const ingredientes         = ref([])
+const categoriasIngrediente = ref([])   // para el modal nuevo ingrediente
 
 const cargando    = ref(false)
 const errorCarga  = ref('')
@@ -593,11 +670,80 @@ async function cargarTodo() {
   if (rIng.ok)  { ingredientes.value = rIng.data;  diagnostico.value.ingredientes = 'ok' }
   else          { diagnostico.value.ingredientes = rIng;  console.error('[ingredientes]', rIng.msg)  }
 
+  // Cargar categorías de ingrediente para el modal "Nuevo ingrediente"
+  try {
+    const rCatIng = await fetch(`${API_INV}/categorias`)
+    if (rCatIng.ok) categoriasIngrediente.value = await rCatIng.json()
+  } catch {}
+
   if ([rProd, rCat, rIng].some(r => !r.ok)) {
     errorCarga.value = 'Uno o más endpoints fallaron — revisa el diagnóstico abajo.'
   }
 
   cargando.value = false
+}
+
+// ── Modal Nuevo Ingrediente ──────────────────────────────────
+const API_BASE = API   // expuesto al template para el panel de diagnóstico
+
+const ingUnidades = [
+  { valor: 'kg',  label: 'kg'  }, { valor: 'g',   label: 'g'   },
+  { valor: 'l',   label: 'l'   }, { valor: 'ml',  label: 'ml'  },
+  { valor: 'u',   label: 'u'   }, { valor: 'lb',  label: 'lb'  },
+  { valor: 'doc', label: 'doc' },
+]
+
+const modalIngAbierto = ref(false)
+const guardandoIng    = ref(false)
+const errorIngForm    = ref('')
+const ingFormVacio = () => ({
+  nombre: '', unidad_medida: '', id_categoria_ingrediente: null,
+  stock_minimo: null, costo_unitario: null, descripcion: '',
+})
+const ingForm = ref(ingFormVacio())
+
+const ingFormValido = computed(() =>
+  ingForm.value.nombre.trim() &&
+  ingForm.value.unidad_medida &&
+  ingForm.value.id_categoria_ingrediente
+)
+
+function abrirModalNuevoIng() {
+  ingForm.value    = ingFormVacio()
+  errorIngForm.value = ''
+  modalIngAbierto.value = true
+}
+function cerrarModalNuevoIng() { modalIngAbierto.value = false }
+
+async function guardarNuevoIng() {
+  if (!ingFormValido.value) return
+  guardandoIng.value   = true
+  errorIngForm.value   = ''
+  try {
+    const res = await fetch(`${API_INV}/ingredientes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre:                   ingForm.value.nombre.trim(),
+        unidad_medida:            ingForm.value.unidad_medida,
+        stock_minimo:             ingForm.value.stock_minimo   || 0,
+        costo_unitario_avg:       ingForm.value.costo_unitario || 0,
+        descripcion:              ingForm.value.descripcion    || null,
+        id_categoria_ingrediente: ingForm.value.id_categoria_ingrediente,
+        activo: true,
+      }),
+    })
+    const data = await res.json()
+    if (!res.ok) { errorIngForm.value = data.error || 'Error al guardar'; return }
+    // Refrescar lista de ingredientes para que aparezca en el picker de recetas
+    const rIng = await fetchEndpoint('ingredientes')
+    if (rIng.ok) ingredientes.value = rIng.data
+    cerrarModalNuevoIng()
+  } catch {
+    errorIngForm.value = 'Error de conexión'
+  } finally {
+    guardandoIng.value = false
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -1116,5 +1262,35 @@ onMounted(() => {
   font-size: .73rem; color: var(--txt2);
   text-align: center; padding: .75rem 0; margin: 0;
   border: 1.5px dashed var(--border); border-radius: 8px;
+}
+
+/* ══ NUEVO INGREDIENTE BUTTON ══════════════════════════ */
+.madmin-btn--nuevo-ing {
+  background: #fff;
+  color: var(--rojo);
+  border: 1.5px solid var(--rojo);
+}
+.madmin-btn--nuevo-ing:hover { background: #FFEBEE; }
+
+/* ══ MODAL INGREDIENTE ══════════════════════════════════ */
+.modal-card--ing { max-width: 480px; }
+
+.ing-unidades {
+  display: flex; flex-wrap: wrap; gap: .4rem;
+  margin-top: 2px;
+}
+.ing-unidad-btn {
+  padding: .3rem .8rem;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: #fff; color: var(--txt2);
+  font-size: .72rem; font-weight: 700;
+  cursor: pointer; transition: all .15s;
+  text-transform: uppercase; letter-spacing: .3px;
+}
+.ing-unidad-btn:hover { border-color: var(--rojo); color: var(--rojo); }
+.ing-unidad-btn--active {
+  background: var(--rojo); border-color: var(--rojo);
+  color: #fff;
 }
 </style>

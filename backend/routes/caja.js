@@ -23,6 +23,31 @@ router.get('/categorias', async (req, res) => {
 })
 
 
+
+// ═══════════════════════════════════════════════════════════
+// GET /api/caja/productos/fingerprint
+// ───────────────────────────────────────────────────────────
+// Devuelve un "fingerprint" liviano del catálogo: la cantidad
+// de productos disponibles. CajaTab lo consulta cada pocos
+// segundos y solo recarga el catálogo completo si cambió.
+// Evita recargas innecesarias sin necesitar WebSockets.
+// ═══════════════════════════════════════════════════════════
+router.get('/productos/fingerprint', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE disponible = true) AS disponibles
+       FROM producto`
+    )
+    res.json({
+      total:       Number(rows[0].total),
+      disponibles: Number(rows[0].disponibles),
+    })
+  } catch (err) {
+    console.error('[GET /api/caja/productos/fingerprint]', err.message)
+    res.status(500).json({ error: 'Error al obtener fingerprint' })
+  }
+})
+
 // ═══════════════════════════════════════════════════════════
 // GET /api/caja/productos
 // ───────────────────────────────────────────────────────────
