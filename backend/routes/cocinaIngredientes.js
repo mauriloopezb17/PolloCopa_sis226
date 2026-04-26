@@ -2,6 +2,32 @@ const express = require('express');
 const pool = require('../db');
 const router = express.Router();
 
+
+// ═══════════════════════════════════════════════════════════
+// GET /api/ingredients/fingerprint
+// ───────────────────────────────────────────────────────────
+// Devuelve un fingerprint liviano: total de ingredientes y
+// cuántos están agotados. CocinaPedidos lo consulta cada 8 s
+// y solo llama a cargarIngredientes() si el valor cambió.
+// Mismo patrón que /api/caja/productos/fingerprint.
+// ═══════════════════════════════════════════════════════════
+router.get('/fingerprint', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT COUNT(*) AS total,
+              COUNT(*) FILTER (WHERE agotado = true) AS agotados
+       FROM Ingredientes`
+    )
+    res.json({
+      total:   Number(rows[0].total),
+      agotados: Number(rows[0].agotados),
+    })
+  } catch (error) {
+    console.error('Error al obtener fingerprint de ingredientes:', error)
+    res.status(500).json({ error: 'Error interno del servidor' })
+  }
+})
+
 router.get('/', async (req, res) => {
   try {
     const query = `
