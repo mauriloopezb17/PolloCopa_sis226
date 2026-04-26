@@ -1,16 +1,16 @@
-// routes/inventario.routes.js
+// routes/historial.js
 const express = require('express')
 const router  = express.Router()
-const pool    = require('../db')
+const db      = require('../db')
 
-// ══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 //  INGREDIENTES
-// ══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 
-// GET /api/inventario/ingredientes
+// GET /api/historial/ingredientes
 router.get('/ingredientes', async (req, res) => {
   try {
-    const { rows } = await pool.query(`
+    const { rows } = await db.query(`
       SELECT
         i.id_insumo             AS id,
         i.nombre,
@@ -21,37 +21,38 @@ router.get('/ingredientes', async (req, res) => {
         i.valor_inventario,
         i.agotado,
         c.nombre                AS categoria
-      FROM Ingredientes i
-      JOIN categoria_ingrediente c ON c.id_categoria_ingrediente = i.id_categoria_ingrediente
+      FROM ingredientes i
+      JOIN categoria_ingrediente c
+        ON c.id_categoria_ingrediente = i.id_categoria_ingrediente
       WHERE i.activo = TRUE
       ORDER BY i.nombre ASC
     `)
     res.json(rows)
   } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Error al obtener ingredientes' })
+    console.error('GET /historial/ingredientes:', err.message)
+    res.status(500).json({ error: err.message })
   }
 })
 
-// GET /api/inventario/tipos-movimiento
+// GET /api/historial/tipos-movimiento
 router.get('/tipos-movimiento', async (req, res) => {
   try {
-    const { rows } = await pool.query(`
+    const { rows } = await db.query(`
       SELECT id_tipo_movimiento AS id, nombre, afecta_stock
       FROM tipo_movimiento
       ORDER BY nombre ASC
     `)
     res.json(rows)
   } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Error al obtener tipos de movimiento' })
+    console.error('GET /historial/tipos-movimiento:', err.message)
+    res.status(500).json({ error: err.message })
   }
 })
 
-// GET /api/inventario/proveedores
+// GET /api/historial/proveedores
 router.get('/proveedores', async (req, res) => {
   try {
-    const { rows } = await pool.query(`
+    const { rows } = await db.query(`
       SELECT id_proveedor AS id, nombre
       FROM proveedor
       WHERE activo = TRUE
@@ -59,16 +60,16 @@ router.get('/proveedores', async (req, res) => {
     `)
     res.json(rows)
   } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Error al obtener proveedores' })
+    console.error('GET /historial/proveedores:', err.message)
+    res.status(500).json({ error: err.message })
   }
 })
 
-// ══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 //  HISTORIAL DE MOVIMIENTOS
-// ══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 
-// GET /api/inventario/movimientos/:idInsumo
+// GET /api/historial/movimientos/:idInsumo
 router.get('/movimientos/:idInsumo', async (req, res) => {
   const { idInsumo } = req.params
   const { tipo, busqueda } = req.query
@@ -81,7 +82,7 @@ router.get('/movimientos/:idInsumo', async (req, res) => {
   if (tipo === 'salida')  condiciones.push(`tm.afecta_stock = -1`)
 
   if (busqueda) {
-    condiciones.push(`(m.motivo ILIKE $${idx} OR m.observacion ILIKE $${idx} OR p.nombre ILIKE $${idx})`)
+    condiciones.push(`(m.observacion ILIKE $${idx} OR p.nombre ILIKE $${idx})`)
     valores.push(`%${busqueda}%`)
     idx++
   }
@@ -89,7 +90,7 @@ router.get('/movimientos/:idInsumo', async (req, res) => {
   const where = condiciones.join(' AND ')
 
   try {
-    const { rows: movimientos } = await pool.query(`
+    const { rows: movimientos } = await db.query(`
       SELECT
         m.id_movimiento                              AS id,
         TO_CHAR(m.fecha, 'YYYY-MM-DD')              AS fecha,
@@ -98,7 +99,6 @@ router.get('/movimientos/:idInsumo', async (req, res) => {
         tm.afecta_stock,
         m.cantidad,
         i.unidad_medida                              AS unidad,
-        m.motivo,
         m.observacion,
         m.lote,
         m.costo_unitario,
@@ -110,26 +110,26 @@ router.get('/movimientos/:idInsumo', async (req, res) => {
         END AS es_alerta
       FROM movimiento_inventario m
       JOIN tipo_movimiento   tm ON tm.id_tipo_movimiento = m.id_tipo_movimiento
-      JOIN Ingredientes       i  ON i.id_insumo           = m.id_insumo
+      JOIN ingredientes     i  ON i.id_insumo           = m.id_insumo
       LEFT JOIN proveedor     p  ON p.id_proveedor        = m.id_proveedor
       WHERE ${where}
       ORDER BY m.fecha DESC
     `, valores)
 
-    const { rows: resumenRows } = await pool.query(`
+    const { rows: resumenRows } = await db.query(`
       SELECT
         COALESCE(SUM(CASE WHEN tm.afecta_stock =  1 THEN m.cantidad END), 0) AS total_entradas,
         COALESCE(SUM(CASE WHEN tm.afecta_stock = -1 THEN m.cantidad END), 0) AS total_salidas,
         COUNT(CASE WHEN tm.afecta_stock = -1 AND m.cantidad >= i.stock_minimo THEN 1 END) AS total_alertas
       FROM movimiento_inventario m
       JOIN tipo_movimiento tm ON tm.id_tipo_movimiento = m.id_tipo_movimiento
-      JOIN Ingredientes     i  ON i.id_insumo           = m.id_insumo
+      JOIN ingredientes   i  ON i.id_insumo           = m.id_insumo
       WHERE m.id_insumo = $1
     `, [idInsumo])
 
-    const { rows: ing } = await pool.query(`
+    const { rows: ing } = await db.query(`
       SELECT stock_actual, stock_minimo, unidad_medida AS unidad, agotado
-      FROM Ingredientes WHERE id_insumo = $1
+      FROM ingredientes WHERE id_insumo = $1
     `, [idInsumo])
 
     res.json({
@@ -137,22 +137,21 @@ router.get('/movimientos/:idInsumo', async (req, res) => {
       movimientos
     })
   } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Error al obtener movimientos' })
+    console.error('GET /historial/movimientos:', err.message)
+    res.status(500).json({ error: err.message })
   }
 })
 
-// POST /api/inventario/movimientos
+// POST /api/historial/movimientos
 router.post('/movimientos', async (req, res) => {
-  const { id_insumo, id_tipo_movimiento, cantidad, motivo, observacion, lote, costo_unitario, id_proveedor } = req.body
+  const { id_insumo, id_tipo_movimiento, cantidad, observacion, lote, costo_unitario, id_proveedor } = req.body
 
-  if (!id_insumo || !id_tipo_movimiento || !cantidad || !motivo)
+  if (!id_insumo || !id_tipo_movimiento || !cantidad)
     return res.status(400).json({ error: 'Faltan campos requeridos' })
-
   if (Number(cantidad) <= 0)
     return res.status(400).json({ error: 'La cantidad debe ser mayor a 0' })
 
-  const client = await pool.connect()
+  const client = await db.connect()
   try {
     await client.query('BEGIN')
 
@@ -165,14 +164,14 @@ router.post('/movimientos', async (req, res) => {
 
     const { rows: movRows } = await client.query(`
       INSERT INTO movimiento_inventario
-        (id_insumo, id_tipo_movimiento, id_proveedor, cantidad, costo_unitario, lote, motivo, observacion)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+        (id_insumo, id_tipo_movimiento, id_proveedor, cantidad, costo_unitario, lote, observacion)
+      VALUES ($1,$2,$3,$4,$5,$6,$7)
       RETURNING *
     `, [id_insumo, id_tipo_movimiento, id_proveedor || null, Number(cantidad),
-        costo_unitario || null, lote || null, motivo, observacion || null])
+        costo_unitario || null, lote || null, observacion || null])
 
     await client.query(`
-      UPDATE Ingredientes
+      UPDATE ingredientes
       SET stock_actual = stock_actual + ($1 * $2),
           agotado      = (stock_actual + ($1 * $2) <= 0)
       WHERE id_insumo = $3
@@ -182,82 +181,84 @@ router.post('/movimientos', async (req, res) => {
     res.status(201).json(movRows[0])
   } catch (err) {
     await client.query('ROLLBACK')
-    console.error(err)
+    console.error('POST /historial/movimientos:', err.message)
     res.status(500).json({ error: err.message })
   } finally {
     client.release()
   }
 })
 
-// ══════════════════════════════════════════════════════════════════
-//  MERMAS (vencidos / dañados)
-// ══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+//  MERMAS
+// ═══════════════════════════════════════════════════════
 
-// GET /api/inventario/merma/historial
+// GET /api/historial/merma/historial
 router.get('/merma/historial', async (req, res) => {
   const { id_insumo, causa } = req.query
-  const condiciones = [`tm.afecta_stock = -1`, `m.motivo IN ('VENCIDO','DAÑADO','VENCIDO Y DAÑADO')`]
-  const valores     = []
-  let   idx         = 1
+  const condiciones = [
+    `tm.afecta_stock = -1`,
+    `m.observacion IN ('VENCIDO','DAÑADO','VENCIDO Y DAÑADO')`
+  ]
+  const valores = []
+  let   idx     = 1
 
   if (id_insumo) { condiciones.push(`m.id_insumo = $${idx++}`); valores.push(id_insumo) }
-  if (causa && ['VENCIDO','DAÑADO'].includes(causa)) { condiciones.push(`m.motivo = $${idx++}`); valores.push(causa) }
+  if (causa && ['VENCIDO','DAÑADO'].includes(causa)) { condiciones.push(`m.observacion = $${idx++}`); valores.push(causa) }
 
   try {
-    const { rows } = await pool.query(`
+    const { rows } = await db.query(`
       SELECT
-        m.id_movimiento                                                        AS id,
-        TO_CHAR(m.fecha, 'YYYY-MM-DD')                                        AS fecha,
-        TO_CHAR(m.fecha, 'HH24:MI')                                           AS hora,
-        i.nombre                                                               AS ingrediente,
-        i.unidad_medida                                                        AS unidad,
+        m.id_movimiento                                                            AS id,
+        TO_CHAR(m.fecha, 'YYYY-MM-DD')                                            AS fecha,
+        TO_CHAR(m.fecha, 'HH24:MI')                                               AS hora,
+        i.nombre                                                                   AS ingrediente,
+        i.unidad_medida                                                            AS unidad,
         m.cantidad,
-        m.motivo                                                               AS causa,
-        m.observacion,
+        m.observacion                                                              AS causa,
         m.lote,
-        ROUND(m.cantidad * COALESCE(m.costo_unitario, i.costo_unitario_avg), 2) AS perdida_estimada
+        ROUND(m.cantidad * COALESCE(m.costo_unitario, i.costo_unitario_avg), 2)   AS perdida_estimada
       FROM movimiento_inventario m
       JOIN tipo_movimiento   tm ON tm.id_tipo_movimiento = m.id_tipo_movimiento
-      JOIN Ingredientes       i  ON i.id_insumo           = m.id_insumo
+      JOIN ingredientes     i  ON i.id_insumo           = m.id_insumo
       WHERE ${condiciones.join(' AND ')}
       ORDER BY m.fecha DESC
     `, valores)
     res.json(rows)
   } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Error al obtener historial de mermas' })
+    console.error('GET /historial/merma/historial:', err.message)
+    res.status(500).json({ error: err.message })
   }
 })
 
-// GET /api/inventario/merma/resumen
+// GET /api/historial/merma/resumen
 router.get('/merma/resumen', async (req, res) => {
   try {
-    const { rows } = await pool.query(`
+    const { rows } = await db.query(`
       SELECT
         i.id_insumo,
-        i.nombre                                                                  AS ingrediente,
-        i.unidad_medida                                                           AS unidad,
-        COUNT(m.id_movimiento)                                                    AS total_registros,
-        SUM(m.cantidad)                                                           AS total_cantidad,
+        i.nombre                                                                      AS ingrediente,
+        i.unidad_medida                                                               AS unidad,
+        COUNT(m.id_movimiento)                                                        AS total_registros,
+        SUM(m.cantidad)                                                               AS total_cantidad,
         ROUND(SUM(m.cantidad * COALESCE(m.costo_unitario, i.costo_unitario_avg)), 2) AS perdida_total
       FROM movimiento_inventario m
       JOIN tipo_movimiento   tm ON tm.id_tipo_movimiento = m.id_tipo_movimiento
-      JOIN Ingredientes       i  ON i.id_insumo           = m.id_insumo
+      JOIN ingredientes     i  ON i.id_insumo           = m.id_insumo
       WHERE tm.afecta_stock = -1
-        AND m.motivo IN ('VENCIDO','DAÑADO','VENCIDO Y DAÑADO')
+        AND m.observacion IN ('VENCIDO','DAÑADO','VENCIDO Y DAÑADO')
       GROUP BY i.id_insumo, i.nombre, i.unidad_medida
       ORDER BY perdida_total DESC
     `)
     res.json(rows)
   } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Error al obtener resumen de mermas' })
+    console.error('GET /historial/merma/resumen:', err.message)
+    res.status(500).json({ error: err.message })
   }
 })
 
-// POST /api/inventario/merma/registrar
+// POST /api/historial/merma/registrar
 router.post('/merma/registrar', async (req, res) => {
-  const { id_insumo, cantidad, causa, observacion, lote } = req.body
+  const { id_insumo, cantidad, causa, lote } = req.body
 
   if (!id_insumo || !cantidad || !causa)
     return res.status(400).json({ error: 'Faltan campos: id_insumo, cantidad, causa' })
@@ -266,32 +267,33 @@ router.post('/merma/registrar', async (req, res) => {
   if (Number(cantidad) <= 0)
     return res.status(400).json({ error: 'La cantidad debe ser mayor a 0' })
 
-  const client = await pool.connect()
+  const client = await db.connect()
   try {
     await client.query('BEGIN')
 
     const { rows: ingRows } = await client.query(
-      `SELECT stock_actual, costo_unitario_avg FROM Ingredientes WHERE id_insumo = $1`, [id_insumo]
+      `SELECT stock_actual, costo_unitario_avg FROM ingredientes WHERE id_insumo = $1`,
+      [id_insumo]
     )
     if (!ingRows.length) throw new Error('Ingrediente no encontrado')
     if (Number(ingRows[0].stock_actual) < Number(cantidad))
       throw new Error(`Stock insuficiente. Stock actual: ${ingRows[0].stock_actual}`)
 
     const { rows: tipoRows } = await client.query(
-      `SELECT id_tipo_movimiento FROM tipo_movimiento WHERE nombre = 'Merma' LIMIT 1`
+      `SELECT id_tipo_movimiento FROM tipo_movimiento WHERE afecta_stock = -1 LIMIT 1`
     )
-    if (!tipoRows.length) throw new Error('Tipo "Merma" no encontrado en la BD')
+    if (!tipoRows.length) throw new Error('No hay tipo de movimiento de salida en la BD')
 
     const { rows: movRows } = await client.query(`
       INSERT INTO movimiento_inventario
-        (id_insumo, id_tipo_movimiento, cantidad, motivo, observacion, lote, costo_unitario)
-      VALUES ($1,$2,$3,$4,$5,$6,$7)
+        (id_insumo, id_tipo_movimiento, cantidad, observacion, lote, costo_unitario)
+      VALUES ($1,$2,$3,$4,$5,$6)
       RETURNING *
-    `, [id_insumo, tipoRows[0].id_tipo_movimiento, Number(cantidad), causa,
-        observacion || null, lote || null, ingRows[0].costo_unitario_avg || null])
+    `, [id_insumo, tipoRows[0].id_tipo_movimiento, Number(cantidad),
+        causa, lote || null, ingRows[0].costo_unitario_avg || null])
 
     await client.query(`
-      UPDATE Ingredientes
+      UPDATE ingredientes
       SET stock_actual = stock_actual - $1,
           agotado      = (stock_actual - $1 <= 0)
       WHERE id_insumo = $2
@@ -299,83 +301,83 @@ router.post('/merma/registrar', async (req, res) => {
 
     await client.query('COMMIT')
     res.status(201).json({
-      ok: true,
+      ok:               true,
       movimiento:       movRows[0],
       perdida_estimada: (Number(cantidad) * Number(ingRows[0].costo_unitario_avg || 0)).toFixed(2)
     })
   } catch (err) {
     await client.query('ROLLBACK')
-    console.error(err)
+    console.error('POST /historial/merma/registrar:', err.message)
     res.status(400).json({ error: err.message })
   } finally {
     client.release()
   }
 })
 
-// ══════════════════════════════════════════════════════════════════
-//  VALOR DE INVENTARIO / COMPRAS CON COSTO
-// ══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+//  VALOR DE INVENTARIO
+// ═══════════════════════════════════════════════════════
 
-// GET /api/inventario/valor/resumen
+// GET /api/historial/valor/resumen
 router.get('/valor/resumen', async (req, res) => {
   try {
-    const { rows } = await pool.query(`
+    const { rows } = await db.query(`
       SELECT
-        COUNT(*)                                                  AS total_ingredientes,
-        COALESCE(SUM(valor_inventario), 0)                       AS valor_total,
-        COUNT(*) FILTER (WHERE agotado)                          AS agotados,
+        COUNT(*)                                                              AS total_ingredientes,
+        COALESCE(SUM(valor_inventario), 0)                                   AS valor_total,
+        COUNT(*) FILTER (WHERE agotado)                                      AS agotados,
         COUNT(*) FILTER (WHERE stock_actual <= stock_minimo AND NOT agotado) AS stock_bajo
-      FROM Ingredientes WHERE activo = TRUE
+      FROM ingredientes
+      WHERE activo = TRUE
     `)
     res.json(rows[0])
   } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Error al obtener resumen de valor' })
+    console.error('GET /historial/valor/resumen:', err.message)
+    res.status(500).json({ error: err.message })
   }
 })
 
-// GET /api/inventario/valor/compras
+// GET /api/historial/valor/compras
 router.get('/valor/compras', async (req, res) => {
   const { id_insumo, fecha_desde, fecha_hasta } = req.query
   const condiciones = [`tm.afecta_stock = 1`, `m.costo_unitario IS NOT NULL`]
   const valores     = []
   let   idx         = 1
 
-  if (id_insumo)    { condiciones.push(`m.id_insumo = $${idx++}`);                          valores.push(id_insumo) }
-  if (fecha_desde)  { condiciones.push(`m.fecha >= $${idx++}`);                             valores.push(fecha_desde) }
-  if (fecha_hasta)  { condiciones.push(`m.fecha <= $${idx++}::date + interval '1 day'`);   valores.push(fecha_hasta) }
+  if (id_insumo)   { condiciones.push(`m.id_insumo = $${idx++}`);                        valores.push(id_insumo) }
+  if (fecha_desde) { condiciones.push(`m.fecha >= $${idx++}`);                           valores.push(fecha_desde) }
+  if (fecha_hasta) { condiciones.push(`m.fecha <= $${idx++}::date + interval '1 day'`); valores.push(fecha_hasta) }
 
   try {
-    const { rows } = await pool.query(`
+    const { rows } = await db.query(`
       SELECT
-        m.id_movimiento                              AS id,
-        TO_CHAR(m.fecha, 'YYYY-MM-DD')              AS fecha,
-        TO_CHAR(m.fecha, 'HH24:MI')                 AS hora,
-        i.nombre                                     AS ingrediente,
-        i.unidad_medida                              AS unidad,
+        m.id_movimiento                          AS id,
+        TO_CHAR(m.fecha, 'YYYY-MM-DD')          AS fecha,
+        TO_CHAR(m.fecha, 'HH24:MI')             AS hora,
+        i.nombre                                 AS ingrediente,
+        i.unidad_medida                          AS unidad,
         m.cantidad,
         m.costo_unitario,
-        ROUND(m.cantidad * m.costo_unitario, 2)     AS subtotal,
+        ROUND(m.cantidad * m.costo_unitario, 2) AS subtotal,
         m.lote,
-        m.motivo,
-        p.nombre                                     AS proveedor
+        p.nombre                                 AS proveedor
       FROM movimiento_inventario m
       JOIN tipo_movimiento   tm ON tm.id_tipo_movimiento = m.id_tipo_movimiento
-      JOIN Ingredientes       i  ON i.id_insumo           = m.id_insumo
+      JOIN ingredientes     i  ON i.id_insumo           = m.id_insumo
       LEFT JOIN proveedor     p  ON p.id_proveedor        = m.id_proveedor
       WHERE ${condiciones.join(' AND ')}
       ORDER BY m.fecha DESC
     `, valores)
     res.json(rows)
   } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Error al obtener compras' })
+    console.error('GET /historial/valor/compras:', err.message)
+    res.status(500).json({ error: err.message })
   }
 })
 
-// POST /api/inventario/valor/registrar-compra
+// POST /api/historial/valor/registrar-compra
 router.post('/valor/registrar-compra', async (req, res) => {
-  const { id_insumo, id_proveedor, cantidad, costo_unitario, lote, motivo, observacion } = req.body
+  const { id_insumo, id_proveedor, cantidad, costo_unitario, lote, observacion } = req.body
 
   if (!id_insumo || !cantidad || !costo_unitario)
     return res.status(400).json({ error: 'Faltan campos: id_insumo, cantidad, costo_unitario' })
@@ -384,17 +386,17 @@ router.post('/valor/registrar-compra', async (req, res) => {
   if (Number(costo_unitario) < 0)
     return res.status(400).json({ error: 'El costo no puede ser negativo' })
 
-  const client = await pool.connect()
+  const client = await db.connect()
   try {
     await client.query('BEGIN')
 
     const { rows: tipoRows } = await client.query(
-      `SELECT id_tipo_movimiento FROM tipo_movimiento WHERE nombre = 'Compra' LIMIT 1`
+      `SELECT id_tipo_movimiento FROM tipo_movimiento WHERE afecta_stock = 1 LIMIT 1`
     )
-    if (!tipoRows.length) throw new Error('Tipo "Compra" no encontrado en la BD')
+    if (!tipoRows.length) throw new Error('No hay tipo de movimiento de entrada en la BD')
 
     const { rows: ingRows } = await client.query(
-      `SELECT stock_actual, costo_unitario_avg, valor_inventario FROM Ingredientes WHERE id_insumo = $1`,
+      `SELECT stock_actual, costo_unitario_avg, valor_inventario FROM ingredientes WHERE id_insumo = $1`,
       [id_insumo]
     )
     if (!ingRows.length) throw new Error('Ingrediente no encontrado')
@@ -412,14 +414,14 @@ router.post('/valor/registrar-compra', async (req, res) => {
 
     const { rows: movRows } = await client.query(`
       INSERT INTO movimiento_inventario
-        (id_insumo, id_tipo_movimiento, id_proveedor, cantidad, costo_unitario, lote, motivo, observacion)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+        (id_insumo, id_tipo_movimiento, id_proveedor, cantidad, costo_unitario, lote, observacion)
+      VALUES ($1,$2,$3,$4,$5,$6,$7)
       RETURNING *
-    `, [id_insumo, tipoRows[0].id_tipo_movimiento, id_proveedor || null, cant,
-        costoNuevo, lote || null, motivo || 'Compra de lote', observacion || null])
+    `, [id_insumo, tipoRows[0].id_tipo_movimiento, id_proveedor || null,
+        cant, costoNuevo, lote || null, observacion || null])
 
     await client.query(`
-      UPDATE Ingredientes
+      UPDATE ingredientes
       SET stock_actual       = stock_actual + $1,
           costo_unitario_avg = $2,
           valor_inventario   = $3,
@@ -438,7 +440,7 @@ router.post('/valor/registrar-compra', async (req, res) => {
     })
   } catch (err) {
     await client.query('ROLLBACK')
-    console.error(err)
+    console.error('POST /historial/valor/registrar-compra:', err.message)
     res.status(400).json({ error: err.message })
   } finally {
     client.release()

@@ -1,6 +1,28 @@
 <template>
   <div class="inventario-wrapper">
 
+    <!-- CAMBIO 3: sub-vistas -->
+    <Historialingrediente
+      v-if="vistaActual === 'historial'"
+      @volver="vistaActual = 'inventario'"
+      @ir-merma="vistaActual = 'merma'"
+      @ir-valor="vistaActual = 'valor'"
+    />
+    <Registromerma
+      v-else-if="vistaActual === 'merma'"
+      @volver="vistaActual = 'inventario'"
+      @ir-historial="vistaActual = 'historial'"
+      @ir-valor="vistaActual = 'valor'"
+    />
+    <Valorinventario
+      v-else-if="vistaActual === 'valor'"
+      @volver="vistaActual = 'inventario'"
+      @ir-historial="vistaActual = 'historial'"
+      @ir-merma="vistaActual = 'merma'"
+    />
+
+    <template v-else>
+
     <div class="section-header">
       <div class="section-header-left">
         <h1 class="section-title">Inventario</h1>
@@ -383,11 +405,21 @@
       </div>
     </transition>
 
+    </template>
+    <!-- fin v-else inventario principal -->
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+
+// CAMBIO 1: importar los 3 componentes y agregar vistaActual
+import Historialingrediente from './Historialingrediente.vue'
+import Registromerma        from './Registromerma.vue'
+import Valorinventario      from './Valorinventario.vue'
+
+const vistaActual = ref('inventario')
 
 const API = 'http://localhost:3000/api/inventario'
 
@@ -450,11 +482,9 @@ const unidades = [
   { valor: 'doc', label: 'doc' },
 ]
 
-// ─── HISTORIAL (placeholder para ruta) ───────────────
+// CAMBIO 2: reemplazar irHistorial
 function irHistorial() {
-  // Aquí puedes reemplazar con tu lógica de enrutamiento (Vue Router)
-  // Ejemplo: router.push('/historial')
-  window.location.href = '/historial' // Placeholder
+  vistaActual.value = 'historial'
 }
 
 // ─── MODAL NUEVO INGREDIENTE ─────────────────────────
@@ -763,34 +793,21 @@ function formatFecha(fechaStr) {
   font-size: 11px; font-weight: 800; letter-spacing: 1px;
   padding: 3px 10px; border-radius: 20px;
 }
-
-/* Animación de parpadeo para el contador de alertas */
-.parpadeo-contador {
-  animation: parpadeo 1.2s ease-in-out infinite;
-}
-@keyframes parpadeo {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
+.parpadeo-contador { animation: parpadeo 1.2s ease-in-out infinite; }
+@keyframes parpadeo { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 .alerta-line    { background: #D90404; }
-
 .alertas-list { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 8px; }
-
 .alerta-row {
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 12px; border-radius: 6px; cursor: pointer;
   transition: opacity 0.2s; gap: 8px;
 }
 .alerta-row:hover { opacity: 0.85; }
-
 .alerta-agotado { background: rgba(217,4,4,0.08); border: 1.5px solid rgba(217,4,4,0.3); }
 .alerta-bajo    { background: rgba(242,203,5,0.15); border: 1.5px solid rgba(242,203,5,0.5); }
-
 .alerta-info   { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
 .alerta-nombre { font-size: 13px; font-weight: 700; color: #1a1a1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .alerta-detalle{ font-size: 11px; color: #888; font-weight: 500; }
-
 .alerta-badge { font-size: 9px; font-weight: 900; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.8px; white-space: nowrap; }
 .alerta-badge-agotado { background: #D90404; color: #fff; }
 .alerta-badge-bajo    { background: #F2CB05; color: #1a1a1a; }
@@ -798,7 +815,6 @@ function formatFecha(fechaStr) {
 /* ── LISTA ──────────────────────────────── */
 .ingrediente-list { padding: 0 16px 16px; }
 .list-group { display: flex; flex-direction: column; gap: 8px; }
-
 .ingrediente-row {
   display: flex; align-items: center; justify-content: space-between;
   background: #fafafa; border: 1.5px solid #ebebeb; border-radius: 6px;
@@ -807,28 +823,21 @@ function formatFecha(fechaStr) {
 .ingrediente-row:hover { border-color: #D90B31; box-shadow: 0 2px 10px rgba(217,11,49,0.08); }
 .row-agotado { border-color: #f5b0b0 !important; background: #fff8f8; }
 .row-bajo    { border-color: #f5dfa0 !important; background: #fffbf0; }
-
 .ingrediente-info  { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
 .ingrediente-top   { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ingrediente-nombre{ font-size: 15px; font-weight: 700; color: #1a1a1a; }
-
 .cat-tag       { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; background: #f0f0f0; color: #888; padding: 2px 8px; border-radius: 4px; }
 .badge-inactivo{ font-size: 10px; font-weight: 900; background: #888; color: #fff; padding: 2px 8px; letter-spacing: 1px; text-transform: uppercase; border-radius: 4px; }
-
 .stock-info { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .stock-item { font-size: 12px; color: #888; font-weight: 500; }
 .stock-sep  { color: #ddd; font-size: 12px; }
 .stock-ok   { color: #D90B31; font-weight: 800; }
 .stock-cero { color: #aaa;    font-weight: 800; }
-
 .stock-bajo-parpadeo { animation: parpadeoStock 1.2s ease-in-out infinite; color: #D90404; font-weight: 700; }
 @keyframes parpadeoStock { 0%,100% { opacity:1; } 50% { opacity:0.2; } }
-
 .badge-agotado    { font-size: 10px; font-weight: 900; letter-spacing: 1px; background: #D90404; color: #fff; padding: 2px 8px; text-transform: uppercase; border-radius: 4px; }
 .badge-disponible { font-size: 10px; font-weight: 800; letter-spacing: 0.8px; background: #edfaf1; color: #1a7a3c; padding: 2px 8px; border: 1px solid #b2e8c6; text-transform: uppercase; border-radius: 4px; }
-
 .ingrediente-acciones { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-
 .btn-info {
   width: 32px; height: 32px; border-radius: 50%;
   border: 1.5px solid #ebebeb; background: #f5f5f5; color: #555;
@@ -838,7 +847,6 @@ function formatFecha(fechaStr) {
 }
 .btn-info:hover      { border-color: #1a1a1a; color: #1a1a1a; background: #eeeeee; }
 .btn-info-active     { border-color: #D90B31; color: #D90B31; background: rgba(217,11,49,0.03); }
-
 .btn-agregar-stock {
   padding: 8px 16px; background: #1a1a1a; color: #F2E205;
   border: 1.5px solid #1a1a1a; border-radius: 6px;
@@ -847,7 +855,6 @@ function formatFecha(fechaStr) {
   transition: background 0.2s; white-space: nowrap;
 }
 .btn-agregar-stock:hover { background: #D90B31; border-color: #D90B31; color: #fff; }
-
 .lista-vacia { display: flex; flex-direction: column; align-items: center; padding: 40px 20px; text-align: center; gap: 8px; }
 .vacia-icon { font-size: 40px; }
 .lista-vacia p { font-size: 14px; font-weight: 600; color: #bbb; }
@@ -866,7 +873,6 @@ function formatFecha(fechaStr) {
 .modal-nuevo           { max-width: 520px; }
 .modal-stock           { max-width: 540px; }
 .modal-info            { max-width: 540px; }
-
 .modal-header {
   display: flex; align-items: flex-start; justify-content: space-between;
   padding: 20px 24px 16px; border-bottom: 1px solid #f0f0f0; flex-shrink: 0;
@@ -876,14 +882,12 @@ function formatFecha(fechaStr) {
 .modal-sub-gray { font-size: 12px; color: #aaa; font-weight: 500; margin-top: 3px; }
 .modal-close    { background: none; border: none; font-size: 16px; color: #aaa; cursor: pointer; padding: 2px 6px; transition: color 0.2s; }
 .modal-close:hover { color: #D90B31; }
-
 .modal-body    { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
 .modal-divider { font-size: 10px; font-weight: 800; color: #888; text-transform: uppercase; letter-spacing: 1.2px; padding-top: 4px; border-top: 1px solid #f0f0f0; }
 .modal-row     { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .modal-field   { display: flex; flex-direction: column; gap: 6px; }
 .modal-label   { font-size: 10px; font-weight: 800; color: #666; text-transform: uppercase; letter-spacing: 0.8px; }
 .req { color: #D90B31; }
-
 .modal-input {
   padding: 9px 12px; border: 1.5px solid #e0e0e0; border-radius: 4px;
   font-size: 13px; font-family: inherit; color: #1a1a1a;
@@ -891,7 +895,6 @@ function formatFecha(fechaStr) {
 }
 .modal-input:focus     { border-color: #D90B31; background: #fff; }
 .modal-input::placeholder { color: #c0c0c0; font-style: italic; }
-
 .modal-textarea {
   padding: 9px 12px; border: 1.5px solid #e0e0e0; border-radius: 4px;
   font-size: 13px; font-family: inherit; color: #1a1a1a;
@@ -900,13 +903,10 @@ function formatFecha(fechaStr) {
 }
 .modal-textarea:focus { border-color: #D90B31; background: #fff; }
 .modal-textarea::placeholder { color: #c0c0c0; font-style: italic; }
-
 .costo-total-display {
   padding: 9px 12px; border: 1.5px solid #F2E205; border-radius: 4px;
   background: #fffde6; font-size: 15px; font-weight: 800; color: #1a1a1a;
 }
-
-/* Tipo fijo COMPRA */
 .tipo-fijo {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 14px;
@@ -916,12 +916,7 @@ function formatFecha(fechaStr) {
 .tipo-fijo-texto  { display: flex; flex-direction: column; gap: 1px; }
 .tipo-fijo-label  { font-size: 10px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.8px; }
 .tipo-fijo-valor  { font-size: 14px; font-weight: 900; color: #1a7a3c; letter-spacing: 0.5px; }
-
-/* Tabs proveedor */
-.proveedor-tabs {
-  display: flex; gap: 8px;
-  margin-top: -4px;
-}
+.proveedor-tabs { display: flex; gap: 8px; margin-top: -4px; }
 .prov-tab {
   display: flex; align-items: center; gap: 7px;
   padding: 8px 16px;
@@ -934,25 +929,10 @@ function formatFecha(fechaStr) {
 .prov-tab:hover:not(:disabled) { border-color: #1a1a1a; color: #1a1a1a; }
 .prov-tab-active { background: #1a1a1a; border-color: #1a1a1a; color: #F2E205; }
 .prov-tab:disabled { opacity: 0.35; cursor: not-allowed; }
-.prov-count {
-  background: #D90B31; color: #fff;
-  font-size: 10px; font-weight: 900;
-  padding: 1px 6px; border-radius: 20px;
-}
-
-/* Lista proveedores existentes */
-.prov-existente-list {
-  display: flex; flex-direction: column; gap: 8px;
-  max-height: 200px; overflow-y: auto;
-  padding-right: 2px;
-}
+.prov-count { background: #D90B31; color: #fff; font-size: 10px; font-weight: 900; padding: 1px 6px; border-radius: 20px; }
+.prov-existente-list { display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; padding-right: 2px; }
 .prov-vacio { font-size: 13px; color: #bbb; font-weight: 600; padding: 12px 0; text-align: center; }
-.prov-card {
-  padding: 10px 14px;
-  border: 1.5px solid #e0e0e0; border-radius: 6px;
-  background: #fafafa; cursor: pointer;
-  transition: all 0.15s;
-}
+.prov-card { padding: 10px 14px; border: 1.5px solid #e0e0e0; border-radius: 6px; background: #fafafa; cursor: pointer; transition: all 0.15s; }
 .prov-card:hover { border-color: #1a1a1a; background: #f5f5f5; }
 .prov-card-active { border-color: #D90B31 !important; background: rgba(217,11,49,0.04) !important; }
 .prov-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
@@ -960,8 +940,6 @@ function formatFecha(fechaStr) {
 .prov-check { font-size: 13px; color: #D90B31; font-weight: 900; }
 .prov-card-info { font-size: 11px; color: #888; font-weight: 500; }
 .prov-card-dir  { font-size: 11px; color: #aaa; margin-top: 2px; }
-
-/* Tabs unit/cat */
 .tab-group { display: flex; flex-wrap: wrap; gap: 6px; }
 .tab-btn {
   padding: 6px 13px; border: 1.5px solid #e0e0e0; border-radius: 20px;
@@ -971,26 +949,15 @@ function formatFecha(fechaStr) {
 }
 .tab-btn:hover   { border-color: #D90B31; color: #D90B31; }
 .tab-btn-active  { background: #D90B31; color: #F2CB05; border-color: #D90B31; }
-
-/* Input con unidad */
 .input-with-unit { display: flex; align-items: stretch; }
 .input-with-unit .modal-input { border-right: none; border-radius: 4px 0 0 4px; flex: 1; }
-.unit-badge {
-  padding: 0 10px; background: #1a1a1a; color: #F2E205;
-  font-size: 12px; font-weight: 800; display: flex; align-items: center;
-  border: 1.5px solid #1a1a1a; border-radius: 0 4px 4px 0; white-space: nowrap;
-}
-
-.modal-footer {
-  display: flex; justify-content: flex-end; gap: 10px;
-  padding: 14px 24px 20px; border-top: 1px solid #f0f0f0; flex-shrink: 0;
-}
+.unit-badge { padding: 0 10px; background: #1a1a1a; color: #F2E205; font-size: 12px; font-weight: 800; display: flex; align-items: center; border: 1.5px solid #1a1a1a; border-radius: 0 4px 4px 0; white-space: nowrap; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 24px 20px; border-top: 1px solid #f0f0f0; flex-shrink: 0; }
 .btn-cancelar  { padding: 9px 20px; background: #f0f0f0; color: #666; border: 1.5px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
 .btn-cancelar:hover:not(:disabled)  { background: #e0e0e0; }
 .btn-confirmar { padding: 9px 22px; background: #D90B31; color: #fff; border: none; border-radius: 6px; font-size: 13px; font-weight: 800; cursor: pointer; letter-spacing: 0.3px; transition: background 0.2s; }
 .btn-confirmar:hover:not(:disabled) { background: #b50826; }
 .btn-confirmar:disabled, .btn-cancelar:disabled { opacity: 0.5; cursor: not-allowed; }
-
 .msg-error { padding: 9px 14px; font-size: 13px; font-weight: 700; background: #fef0f0; color: #c0392b; border: 1px solid #f5c0c0; border-radius: 4px; }
 
 /* ── HISTORIAL ───────────────────────────── */
