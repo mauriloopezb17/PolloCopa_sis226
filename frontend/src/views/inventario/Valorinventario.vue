@@ -183,6 +183,7 @@ onMounted(async () => { await Promise.all([cargarIngredientes(), cargarProveedor
   </div>
 </template>
 
+
 <style scoped>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 .v-wrapper { padding: 24px 32px; background: #f9f9f9; min-height: 100%; font-family: 'Segoe UI', sans-serif; color: #1a1a1a; display: flex; flex-direction: column; gap: 0; }
