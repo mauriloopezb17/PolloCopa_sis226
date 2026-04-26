@@ -154,7 +154,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'cerrado'])
 
-const API = 'http://localhost:3000/api/caja'
+const API = 'https://pollocopa.62344037.xyz/api/caja'
 
 const cargando           = ref(false)
 const cerrando           = ref(false)

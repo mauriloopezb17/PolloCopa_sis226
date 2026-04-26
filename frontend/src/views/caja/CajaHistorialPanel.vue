@@ -75,7 +75,7 @@ import { ref, onMounted } from 'vue'
 
 const emit = defineEmits(['close', 'anulado'])
 
-const API = 'http://localhost:3000/api/caja'
+const API = 'https://pollocopa.62344037.xyz/api/caja'
 
 const pedidos  = ref([])
 const cargando = ref(true)

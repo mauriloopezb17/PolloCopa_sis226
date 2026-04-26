@@ -228,8 +228,8 @@ const LIMITE_MS  = 10 * 60 * 1000
 const ALERTA_MS  =  8 * 60 * 1000
 const CRITICO_MS = 10 * 60 * 1000
 const POLLING_MS = 5 * 1000
-const API_BASE   = 'http://localhost:3000/api/cocina'
-const API_ING    = 'http://localhost:3000/api/ingredients'
+const API_BASE   = 'https://pollocopa.62344037.xyz/api/cocina'
+const API_ING    = 'https://pollocopa.62344037.xyz/api/ingredients'
 const MODO_MOCK  = false
 
 const TIPO_LABELS = {

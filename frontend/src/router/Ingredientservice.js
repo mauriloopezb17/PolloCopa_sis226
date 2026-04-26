@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://pollocopa.62344037.xyz'
 
 export async function fetchIngredients() {
   const res = await fetch(`${BASE_URL}/api/ingredients`)

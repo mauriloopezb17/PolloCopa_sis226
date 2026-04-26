@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 
-const API = 'http://localhost:3000'
+const API = 'https://pollocopa.62344037.xyz'
 const emit = defineEmits(['volver', 'ir-historial', 'ir-valor'])
 
 const ingredientes  = ref([])

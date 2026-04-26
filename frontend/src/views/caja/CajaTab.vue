@@ -175,7 +175,7 @@ import CajaCierreModal     from './CajaCierreModal.vue'
 import CajaHistorialPanel     from './CajaHistorialPanel.vue'
 import CajaHistorialAuthModal from './CajaHistorialAuthModal.vue'
 
-const API = 'http://localhost:3000/api/caja'
+const API = 'https://pollocopa.62344037.xyz/api/caja'
 
 // ── Turno de caja ──────────────────────────────────────────
 const turno                  = ref(null)   // null = cerrado

@@ -111,7 +111,7 @@ import MenuProductoCard from './MenuProductoCard.vue'
 import CajaPedidoPanel   from '../caja/CajaPedidoPanel.vue'
 import CajaReceiptModal  from '../caja/CajaReceiptModal.vue'
 
-const API = 'http://localhost:3000/api/caja'
+const API = 'https://pollocopa.62344037.xyz/api/caja'
 
 // ── Turno (para habilitar pedido) ──────────────────────────
 const turno       = ref(null)

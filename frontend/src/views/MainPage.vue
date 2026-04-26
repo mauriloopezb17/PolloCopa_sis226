@@ -123,7 +123,7 @@ onMounted(() => {
     }
     console.log("%c🚀 Iniciando reabastecimiento...", "color: #F2CB05; font-weight: bold;")
 
-    const ings = await fetch('http://localhost:3000/api/inventario/ingredientes').then(r => r.json())
+    const ings = await fetch('https://pollocopa.62344037.xyz/api/inventario/ingredientes').then(r => r.json())
     const missing = ings.filter(i => !(i.id_insumo in hardcoded))
     if (missing.length > 0) {
       console.warn('⚠️ Ingredientes sin valor hardcodeado (no serán reseteados):\n' +
@@ -131,7 +131,7 @@ onMounted(() => {
     }
 
     for (const [id, stock] of Object.entries(hardcoded)) {
-      await fetch(`http://localhost:3000/api/inventario/ingredientes/${id}/force-stock`, {
+      await fetch(`https://pollocopa.62344037.xyz/api/inventario/ingredientes/${id}/force-stock`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stock }),

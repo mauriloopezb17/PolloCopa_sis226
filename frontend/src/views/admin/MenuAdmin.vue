@@ -370,8 +370,8 @@
 import { ref, computed, onMounted } from 'vue'
 
 // ── Config ───────────────────────────────────────────────────
-const API     = 'http://localhost:3000/api/menuAdmin'
-const API_INV = 'http://localhost:3000/api/inventario'
+const API     = 'https://pollocopa.62344037.xyz/api/menuAdmin'
+const API_INV = 'https://pollocopa.62344037.xyz/api/inventario'
 const PASSWORD_ADMIN = 'admin'   // ← cambiar cuando haya auth real
 
 // ── Auth ─────────────────────────────────────────────────────
