@@ -34,18 +34,6 @@
       </div>
     </div>
 
-    <!-- ── Aviso de refresco ── -->
-    <transition name="banner-slide">
-      <div v-if="mostrarAvisoRefresco" class="refresco-banner">
-        <span class="refresco-icono">⚠️</span>
-        <span class="refresco-txt">
-          Cambiaste un ingrediente — recarga la página para evitar pedidos fantasma.
-        </span>
-        <button class="refresco-btn-ok" @click="recargarPagina">Recargar ahora</button>
-        <button class="refresco-btn-cerrar" @click="mostrarAvisoRefresco = false" aria-label="Cerrar aviso">✕</button>
-      </div>
-    </transition>
-
     <!-- ── HU-23: resumen ── -->
     <section class="resumen-bar" v-if="resumenProductos.length > 0">
       <span class="resumen-titulo">Preparar ahora:</span>
@@ -257,6 +245,8 @@ export default {
       ingredientes: [],
       togglingIngId: null,
       mostrarAvisoRefresco: false,
+      _ingFingerprint: null,   // último fingerprint conocido de ingredientes
+      _ingPoll: null,          // timer del polling de ingredientes
       // Música
       musicaActiva: false,
     }
@@ -467,6 +457,22 @@ export default {
       window.location.reload()
     },
 
+    /* ── Polling fingerprint de ingredientes ── */
+    async _pollIngFingerprint() {
+      try {
+        const res = await fetch(`${API_ING}/fingerprint`)
+        if (!res.ok) return
+        const { total, agotados } = await res.json()
+        const fp = `${total}:${agotados}`
+        if (this._ingFingerprint !== null && fp !== this._ingFingerprint) {
+          await this.cargarIngredientes()
+        }
+        this._ingFingerprint = fp
+      } catch {
+        // red caída — el próximo tick reintenta
+      }
+    },
+
     _cargarMock() {
       if (this.pedidos.length > 0) return
       const b = Date.now()
@@ -480,13 +486,21 @@ export default {
 
   mounted() {
     this.cargarPedidos()
-    this.cargarIngredientes()
-    this._poll = setInterval(() => this.cargarPedidos(), POLLING_MS)
-    this._tick = setInterval(() => { this.ahora = Date.now() }, 1000)
+    this.cargarIngredientes().then(() => {
+      // Tomar fingerprint inicial después de la primera carga
+      fetch(`${API_ING}/fingerprint`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) this._ingFingerprint = `${d.total}:${d.agotados}` })
+        .catch(() => {})
+    })
+    this._poll    = setInterval(() => this.cargarPedidos(), POLLING_MS)
+    this._ingPoll = setInterval(() => this._pollIngFingerprint(), 8000)
+    this._tick    = setInterval(() => { this.ahora = Date.now() }, 1000)
   },
 
   beforeUnmount() {
     clearInterval(this._poll)
+    clearInterval(this._ingPoll)
     clearInterval(this._tick)
     if (this.$refs.audioPlayer) this.$refs.audioPlayer.pause()
   },
@@ -580,13 +594,13 @@ export default {
 /* ── HU-23: resumen ── */
 .resumen-bar { background: #fff; border-bottom: 1px solid var(--border); padding: .6rem 1.5rem; display: flex; align-items: flex-start; gap: .85rem; }
 .resumen-titulo { font-size: .7rem; font-weight: 700; color: var(--txt2); letter-spacing: .4px; text-transform: uppercase; white-space: nowrap; padding-top: 2px; }
-.resumen-lista  { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
+.resumen-lista  { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: .4rem .75rem; }
 .resumen-item   { display: flex; align-items: center; gap: .5rem; }
 .resumen-count  { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; border-radius: 6px; background: var(--rojo); color: #fff; font-size: .72rem; font-weight: 700; padding: 0 5px; }
 .resumen-nombre { font-size: .78rem; font-weight: 600; color: var(--txt); }
 
 /* ── Layout ── */
-.cocina-layout { display: flex; align-items: flex-start; min-height: calc(100vh - 68px - 44px); }
+.cocina-layout { display: flex; align-items: stretch; min-height: calc(100vh - 68px - 44px); }
 .cocina-pedidos-col { flex: 1 1 0; min-width: 0; overflow-y: auto; }
 
 /* ── Área de grupos ── */
@@ -700,13 +714,13 @@ export default {
 .btn-completar:disabled              { opacity: .6; cursor: not-allowed; }
 
 /* ── Panel ingredientes ── */
-.ingredientes-panel { flex: 0 0 220px; width: 220px; background: #fff; border-left: 1px solid var(--border); display: flex; flex-direction: column; align-self: stretch; }
+.ingredientes-panel { flex: 0 0 220px; width: 220px; background: #fff; border-left: 1px solid var(--border); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; max-height: 100vh; overflow: hidden; }
 .ing-header { background: var(--rojo); padding: .55rem .75rem; display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-shrink: 0; }
 .ing-titulo { color: #fff; font-size: .75rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
 .ing-estado-chip { font-size: .62rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1.5px solid rgba(255,255,255,.6); white-space: nowrap; }
 .chip-ok    { color: #fff; }
 .chip-falta { color: #FFCA07; border-color: #FFCA07; }
-.ing-lista { flex: 1 1 0; overflow-y: auto; max-height: calc(100vh - 68px - 44px - 42px - 48px); padding: .5rem .6rem; display: flex; flex-direction: column; gap: .4rem; }
+.ing-lista { flex: 1 1 0; overflow-y: auto; padding: .5rem .6rem; display: flex; flex-direction: column; gap: .4rem; }
 .ing-item { display: flex; align-items: center; justify-content: space-between; background: #FFCA07; border: 1.5px solid #D90404; border-radius: 8px; padding: 6px 8px; transition: opacity .2s; }
 .ing-item--out { opacity: .72; background: #ecc434; }
 .ing-nombre { font-size: .72rem; font-weight: 700; color: #1A1A1A; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: .4rem; }
