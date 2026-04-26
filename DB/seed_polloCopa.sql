@@ -47,30 +47,6 @@ VALUES (
         NULL
     );
 -- ============================================================
--- 3. Usuarios (sin dependencias)
-INSERT INTO Usuarios (nombre, apellido, telefono, email, password)
-VALUES (
-        'Carlos',
-        'Mamani',
-        '71234567',
-        'carlos.mamani@gmail.com',
-        'pass1234'
-    ),
-    (
-        'Lucia',
-        'Quispe',
-        '76543210',
-        'lucia.quispe@gmail.com',
-        'pass5678'
-    ),
-    (
-        'Roberto',
-        'Flores',
-        '69876543',
-        'roberto.flores@gmail.com',
-        'pass9012'
-    );
--- ============================================================
 -- 4. proveedor (sin dependencias)
 INSERT INTO proveedor (
         nombre,
@@ -400,7 +376,6 @@ VALUES (5, 6, 0.150),
 -- ============================================================
 -- 12. pedido (depende de: Usuarios, estado_pedido)
 INSERT INTO pedido (
-        id_usuario,
         id_estado,
         numero_ticket,
         origen_web,
@@ -411,7 +386,6 @@ INSERT INTO pedido (
         instrucciones
     )
 VALUES (
-        1,
         4,
         'TICK-2026-0001',
         false,
@@ -422,7 +396,6 @@ VALUES (
         'Sin instrucciones especiales'
     ),
     (
-        2,
         4,
         'TICK-2026-0002',
         true,
@@ -433,7 +406,6 @@ VALUES (
         'Sin cebolla por favor'
     ),
     (
-        3,
         2,
         'TICK-2026-0003',
         false,
@@ -574,10 +546,6 @@ UNION ALL
 SELECT 'turno_caja',
     COUNT(*)
 FROM turno_caja
-UNION ALL
-SELECT 'Usuarios',
-    COUNT(*)
-FROM Usuarios
 UNION ALL
 SELECT 'proveedor',
     COUNT(*)
@@ -1937,10 +1905,6 @@ UNION ALL
 SELECT 'turno_caja',
     COUNT(*)
 FROM turno_caja
-UNION ALL
-SELECT 'Usuarios',
-    COUNT(*)
-FROM Usuarios
 UNION ALL
 SELECT 'proveedor',
     COUNT(*)

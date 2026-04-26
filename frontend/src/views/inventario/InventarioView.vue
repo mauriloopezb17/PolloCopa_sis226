@@ -452,27 +452,7 @@ onUnmounted(() => {
   if (audioPlayerInv.value) audioPlayerInv.value.pause()
 })
 
-// ── 🎵 Música ──────────────────────────────────────────────
-const audioPlayerInv = ref(null)
-const musicaActiva   = ref(false)
-
-function toggleMusica() {
-  const audio = audioPlayerInv.value
-  if (!audio) return
-  if (musicaActiva.value) {
-    audio.pause()
-    musicaActiva.value = false
-  } else {
-    audio.play().catch(() => console.warn('[Inventario] No se pudo reproducir el audio.'))
-    musicaActiva.value = true
-  }
-}
-
-onUnmounted(() => {
-  if (audioPlayerInv.value) audioPlayerInv.value.pause()
-})
-
-const API = 'https://pollocopa.62344037.xyz/api/inventario'
+const API = 'http://localhost:3000/api/inventario'
 
 // ─── DATOS ───────────────────────────────────────────
 const categorias      = ref([])
