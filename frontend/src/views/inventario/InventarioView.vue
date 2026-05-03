@@ -452,7 +452,7 @@ onUnmounted(() => {
   if (audioPlayerInv.value) audioPlayerInv.value.pause()
 })
 
-const API = 'http://localhost:3000/api/inventario'
+const API = 'https://pollocopa.62344037.xyz/api/inventario'
 
 // ─── DATOS ───────────────────────────────────────────
 const categorias      = ref([])

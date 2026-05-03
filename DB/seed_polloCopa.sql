@@ -686,8 +686,37 @@ VALUES (
         NULL,
         true
     );
--- Nota: Copalitos tiene también venta por unidad (1/2 Docena=40, Docena=68)
--- Esos se modelan como productos separados en EXTRAS para poder pedirlos solos.
+-- Copalitos por unidad: venta independiente, misma categoría POLLO
+INSERT INTO producto (
+        codigo,
+        nombre,
+        descripcion,
+        id_categoria_producto,
+        precio_combo,
+        precio_con_papa,
+        precio_solo,
+        disponible
+    )
+VALUES (
+        'POLL-COP-MD',
+        'Copalitos 1/2 Docena',
+        '6 Filetes de Pechuga de Pollo',
+        1,
+        NULL,
+        NULL,
+        40.00,
+        true
+    ),
+    (
+        'POLL-COP-DC',
+        'Copalitos Docena',
+        '12 Filetes de Pechuga de Pollo',
+        1,
+        NULL,
+        NULL,
+        68.00,
+        true
+    );
 -- ────────────────────────────────
 -- CATEGORÍA 2: BALDES
 -- ────────────────────────────────
@@ -1130,26 +1159,6 @@ VALUES (
         NULL,
         3.00,
         true
-    ),
-    (
-        'EXTR-COP-MD',
-        'Copalitos 1/2 Docena',
-        '6 Filetes de Pechuga de Pollo',
-        8,
-        NULL,
-        NULL,
-        40.00,
-        true
-    ),
-    (
-        'EXTR-COP-DC',
-        'Copalitos Docena',
-        '12 Filetes de Pechuga de Pollo',
-        8,
-        NULL,
-        NULL,
-        68.00,
-        true
     );
 -- Verificación de productos insertados
 SELECT p.codigo,
@@ -1425,6 +1434,35 @@ VALUES -- Para ensaladas y wraps
         false,
         true,
         1
+    ),
+    -- ── Ingredientes base para acompañamientos ──
+    -- Sin estos ingredientes, Papa/Arroz/Coleslaw/Gaseosa nunca descontarían stock.
+    -- id_insumo=31: Arroz crudo
+    (
+        'Arroz crudo',
+        'Arroz blanco de grano largo',
+        'kg',
+        40.000,
+        5.000,
+        6.50,
+        260.00,
+        false,
+        true,
+        3
+    ),
+    -- id_insumo=32: Repollo para coleslaw (ya existe "Repollo blanco" id=15, lo reutilizamos)
+    -- id_insumo=32: Concentrado de gaseosa / gaseosa porcionada
+    (
+        'Gaseosa porcionada',
+        'Bebida gaseosa en vaso (porción de surtidora o botella)',
+        'u',
+        500.000,
+        50.000,
+        3.50,
+        1750.00,
+        false,
+        true,
+        7
     );
 -- Verificación de ingredientes
 SELECT id_insumo,
@@ -1448,7 +1486,8 @@ ORDER BY id_insumo;
 --   19=Plátano chips, 20=Mezcla donut, 21=Mezcla mousse,
 --   22=Base pie, 23=Salsa Ranch, 24=Salsa Italian,
 --   25=Salsa Miel y Mostaza, 26=Salsa Barbacoa, 27=Salsa Acevichada,
---   28=Tortilla trigo, 29=Filete pechuga, 30=Alitas de pollo
+--   28=Tortilla trigo, 29=Filete pechuga, 30=Alitas de pollo,
+--   31=Arroz crudo, 32=Gaseosa porcionada
 -- ============================================================
 -- Para obtener los IDs reales de los productos nuevos usamos subqueries
 -- en lugar de hardcodear IDs, para evitar errores si el serial difiere.
@@ -1832,7 +1871,7 @@ FROM producto p,
         VALUES (29, 0.360) -- 6 filetes
     ) AS v(ing_id, cantidad)
     JOIN Ingredientes i ON i.id_insumo = v.ing_id
-WHERE p.codigo = 'EXTR-COP-MD';
+WHERE p.codigo = 'POLL-COP-MD';
 INSERT INTO receta (id_producto, id_ingrediente, cantidad)
 SELECT p.id_producto,
     i.id_insumo,
@@ -1842,7 +1881,155 @@ FROM producto p,
         VALUES (29, 0.720) -- 12 filetes
     ) AS v(ing_id, cantidad)
     JOIN Ingredientes i ON i.id_insumo = v.ing_id
-WHERE p.codigo = 'EXTR-COP-DC';
+WHERE p.codigo = 'POLL-COP-DC';
+-- ── Recetas de Acompañamientos ──
+-- Sin receta estos productos nunca descuentan stock. Se modela el ingrediente
+-- base que realmente se consume al preparar/despachar cada porción.
+--
+-- Papa (4=Papa blanca pelada)
+INSERT INTO receta (id_producto, id_ingrediente, cantidad)
+SELECT p.id_producto,
+    i.id_insumo,
+    v.cantidad
+FROM producto p,
+    (
+        VALUES (4, 0.150)
+    ) AS v(ing_id, cantidad) -- 150g papa → porción personal
+    JOIN Ingredientes i ON i.id_insumo = v.ing_id
+WHERE p.codigo = 'ACOM-PAP-P';
+INSERT INTO receta (id_producto, id_ingrediente, cantidad)
+SELECT p.id_producto,
+    i.id_insumo,
+    v.cantidad
+FROM producto p,
+    (
+        VALUES (4, 0.250)
+    ) AS v(ing_id, cantidad) -- 250g papa → porción mediana
+    JOIN Ingredientes i ON i.id_insumo = v.ing_id
+WHERE p.codigo = 'ACOM-PAP-M';
+INSERT INTO receta (id_producto, id_ingrediente, cantidad)
+SELECT p.id_producto,
+    i.id_insumo,
+    v.cantidad
+FROM producto p,
+    (
+        VALUES (4, 0.400)
+    ) AS v(ing_id, cantidad) -- 400g papa → porción grande
+    JOIN Ingredientes i ON i.id_insumo = v.ing_id
+WHERE p.codigo = 'ACOM-PAP-G';
+-- Arroz (31=Arroz crudo)
+INSERT INTO receta (id_producto, id_ingrediente, cantidad)
+SELECT p.id_producto,
+    i.id_insumo,
+    v.cantidad
+FROM producto p,
+    (
+        VALUES (31, 0.100)
+    ) AS v(ing_id, cantidad) -- 100g arroz crudo → porción personal
+    JOIN Ingredientes i ON i.id_insumo = v.ing_id
+WHERE p.codigo = 'ACOM-ARR-P';
+INSERT INTO receta (id_producto, id_ingrediente, cantidad)
+SELECT p.id_producto,
+    i.id_insumo,
+    v.cantidad
+FROM producto p,
+    (
+        VALUES (31, 0.180)
+    ) AS v(ing_id, cantidad) -- 180g arroz crudo → porción mediana
+    JOIN Ingredientes i ON i.id_insumo = v.ing_id
+WHERE p.codigo = 'ACOM-ARR-M';
+INSERT INTO receta (id_producto, id_ingrediente, cantidad)
+SELECT p.id_producto,
+    i.id_insumo,
+    v.cantidad
+FROM producto p,
+    (
+        VALUES (31, 0.280)
+    ) AS v(ing_id, cantidad) -- 280g arroz crudo → porción grande
+    JOIN Ingredientes i ON i.id_insumo = v.ing_id
+WHERE p.codigo = 'ACOM-ARR-G';
+-- Coleslaw (15=Repollo blanco, 14=Zanahoria rallada)
+-- Se reutilizan ingredientes ya existentes; el repollo es el componente mayoritario.
+INSERT INTO receta (id_producto, id_ingrediente, cantidad)
+SELECT p.id_producto,
+    i.id_insumo,
+    v.cantidad
+FROM producto p,
+    (
+        VALUES (15, 0.100),
+            (14, 0.030)
+    ) AS v(ing_id, cantidad)
+    JOIN Ingredientes i ON i.id_insumo = v.ing_id
+WHERE p.codigo = 'ACOM-COL-P';
+INSERT INTO receta (id_producto, id_ingrediente, cantidad)
+SELECT p.id_producto,
+    i.id_insumo,
+    v.cantidad
+FROM producto p,
+    (
+        VALUES (15, 0.180),
+            (14, 0.050)
+    ) AS v(ing_id, cantidad)
+    JOIN Ingredientes i ON i.id_insumo = v.ing_id
+WHERE p.codigo = 'ACOM-COL-M';
+INSERT INTO receta (id_producto, id_ingrediente, cantidad)
+SELECT p.id_producto,
+    i.id_insumo,
+    v.cantidad
+FROM producto p,
+    (
+        VALUES (15, 0.280),
+            (14, 0.080)
+    ) AS v(ing_id, cantidad)
+    JOIN Ingredientes i ON i.id_insumo = v.ing_id
+WHERE p.codigo = 'ACOM-COL-G';
+-- Gaseosa (32=Gaseosa porcionada: 1 unidad = 1 vaso/porción)
+INSERT INTO receta (id_producto, id_ingrediente, cantidad)
+SELECT p.id_producto,
+    i.id_insumo,
+    v.cantidad
+FROM producto p,
+    (
+        VALUES (32, 1.000)
+    ) AS v(ing_id, cantidad)
+    JOIN Ingredientes i ON i.id_insumo = v.ing_id
+WHERE p.codigo = 'ACOM-GAS-P';
+INSERT INTO receta (id_producto, id_ingrediente, cantidad)
+SELECT p.id_producto,
+    i.id_insumo,
+    v.cantidad
+FROM producto p,
+    (
+        VALUES (32, 1.000)
+    ) AS v(ing_id, cantidad)
+    JOIN Ingredientes i ON i.id_insumo = v.ing_id
+WHERE p.codigo = 'ACOM-GAS-M';
+INSERT INTO receta (id_producto, id_ingrediente, cantidad)
+SELECT p.id_producto,
+    i.id_insumo,
+    v.cantidad
+FROM producto p,
+    (
+        VALUES (32, 1.000)
+    ) AS v(ing_id, cantidad)
+    JOIN Ingredientes i ON i.id_insumo = v.ing_id
+WHERE p.codigo = 'ACOM-GAS-G';
+-- Queso o Tocino (18=Queso en lonchas, 9=Tocino ahumado)
+-- Es un extra de elección: se registra 1 loncha de queso O tocino.
+-- Se modela con ambos ingredientes en cantidad mínima; en la práctica
+-- el sistema debería descontar solo el elegido, pero para inventario
+-- semilla se registran los dos como referencia de consumo máximo.
+INSERT INTO receta (id_producto, id_ingrediente, cantidad)
+SELECT p.id_producto,
+    i.id_insumo,
+    v.cantidad
+FROM producto p,
+    (
+        VALUES (18, 0.020),
+            (9, 0.020)
+    ) AS v(ing_id, cantidad)
+    JOIN Ingredientes i ON i.id_insumo = v.ing_id
+WHERE p.codigo = 'EXTR-QTO';
 -- Verificación de recetas
 SELECT p.codigo,
     p.nombre AS producto,

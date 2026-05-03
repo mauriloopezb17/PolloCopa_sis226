@@ -239,6 +239,7 @@ export default {
       ahora: Date.now(),
       sincronizando: false,
       completando: null,
+      completadosUid: [],
       _tick: null,
       _poll: null,
       LIMITE_MS,
@@ -266,27 +267,26 @@ export default {
         }))
     },
 
-    // Expande por cantidad (lógica original de tu amigo, sin cambios)
     pedidosExpandidos() {
-      const resultado = []
-      for (const pedido of this.pedidosOrdenados) {
-        const cant = pedido.cantidad > 1 ? pedido.cantidad : 1
-        for (let i = 0; i < cant; i++) {
-          resultado.push({
-            ...pedido,
-            _uid: `${pedido.id_detalle}-${i}`,
-            cantidad: 1,
-          })
-        }
+    const resultado = []
+    for (const pedido of this.pedidosOrdenados) {
+      const cant = pedido.cantidad > 1 ? pedido.cantidad : 1
+      for (let i = 0; i < cant; i++) {
+        const uid = `${pedido.id_detalle}-${i}`
+        if (this.completadosUid.includes(uid)) continue
+        resultado.push({
+          ...pedido,
+          _uid: uid,
+          _instancia: i,
+          _totalInstancias: cant,
+          cantidad: 1,
+        })
       }
-      return resultado
-    },
+    }
+    return resultado
+  },
 
-    /*
-      Agrupa pedidosExpandidos por id_pedido.
-      Mantiene el orden: el grupo más antiguo va primero.
-      Cada grupo: { id_pedido, numero_ticket, hora_pedido, instrucciones, items[] }
-    */
+  
     pedidosAgrupados() {
       const mapa = new Map()
       for (const item of this.pedidosExpandidos) {
@@ -416,19 +416,35 @@ export default {
     },
 
     async completarDetalle(item) {
-      this.completando = item.id_detalle
-      try {
-        const res = await fetch(`${API_BASE}/detalles/${item.id_detalle}/completar`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-        })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      this.completando = item._uid
+
+      const yaCompletadas = this.completadosUid.filter(
+        uid => uid.startsWith(`${item.id_detalle}-`)
+      ).length
+      const esUltima = (yaCompletadas + 1) >= item._totalInstancias
+
+      if (esUltima) {
+        try {
+          const res = await fetch(`${API_BASE}/detalles/${item.id_detalle}/completar`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+          })
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          this.pedidosListosHoy++
+          this.completadosUid.push(item._uid)
+          await this.cargarPedidos()
+          this.completadosUid = this.completadosUid.filter(
+            uid => !uid.startsWith(`${item.id_detalle}-`)
+          )
+        } catch (err) {
+          console.error('[Cocina] Error al completar ítem:', err)
+          alert('No se pudo completar el ítem. Intenta de nuevo.')
+        } finally {
+          this.completando = null
+        }
+      } else {
+        this.completadosUid.push(item._uid)
         this.pedidosListosHoy++
-        await this.cargarPedidos()
-      } catch (err) {
-        console.error('[Cocina] Error al completar ítem:', err)
-        alert('No se pudo completar el ítem. Intenta de nuevo.')
-      } finally {
         this.completando = null
       }
     },

@@ -53,13 +53,13 @@ router.patch('/detalles/:id_detalle/completar', async (req, res) => {
 
     const { rows: detalles } = await client.query(
       `SELECT id_detalle, id_pedido FROM detalle_pedido
-       WHERE id_detalle = $1 AND completado = false`,
+      WHERE id_detalle = $1`,
       [id_detalle]
     )
 
     if (detalles.length === 0) {
       await client.query('ROLLBACK')
-      return res.status(404).json({ error: 'Detalle no encontrado o ya completado' })
+      return res.status(404).json({ error: 'Detalle no encontrado' })
     }
 
     const id_pedido = detalles[0].id_pedido
